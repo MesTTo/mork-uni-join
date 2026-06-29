@@ -67,8 +67,8 @@ impl Semiring for Tropical {
     }
 }
 
-/// Counting: how many ways a match succeeds. product = *, sum = +. This is the semiring
-/// FuzzyMultiMap aggregates over (union/count of the fuzzy-matched set).
+/// Counting: how many ways a match succeeds. product = *, sum = +. This is the semiring a
+/// fuzzy-match source aggregates over (a count of the fuzzy-matched set).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Count(pub u64);
 impl Semiring for Count {

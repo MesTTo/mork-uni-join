@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn count_semiring_counts_derivations() {
-        // The FuzzyMultiMap aggregation shape: how many ways does each answer arise.
+        // The aggregation shape: how many ways does each answer arise.
         // (e $x) over (e a),(e a),(e b): $x=a from two facts, $x=b from one.
         let q = Conj::parse(&["(e $x)"]);
         let s = space(&["(e a)", "(e a)", "(e b)"]);

@@ -33,13 +33,13 @@ pub fn edit_distance(a: &str, b: &str) -> usize {
 /// A fuzzy multimap: keys carry values, a query fuzzy-matches the key within an edit
 /// distance and aggregates the matched values.
 #[derive(Default)]
-pub struct FuzzyMultiMap<V> {
+pub struct FuzzyMap<V> {
     entries: Vec<(String, V)>,
 }
 
-impl<V> FuzzyMultiMap<V> {
+impl<V> FuzzyMap<V> {
     pub fn new() -> Self {
-        FuzzyMultiMap { entries: Vec::new() }
+        FuzzyMap { entries: Vec::new() }
     }
 
     pub fn insert(&mut self, key: &str, value: V) {
@@ -67,7 +67,7 @@ impl<V> FuzzyMultiMap<V> {
     }
 }
 
-impl FuzzyMultiMap<HashSet<i32>> {
+impl FuzzyMap<HashSet<i32>> {
     /// Union the value sets of every key within `max_distance`. Set union is the `add` of a
     /// set-union semiring, so this is the same aggregation the generic `query` performs,
     /// specialized to sets.
@@ -101,7 +101,7 @@ mod tests {
     fn fuzzy_multimap_unions_matched_values() {
         // foo->{1,2}, bar->{3}, baz->{4,5}; query "bat" within distance 1 matches bar and
         // baz (not foo), and unions their values.
-        let mut m: FuzzyMultiMap<HashSet<i32>> = FuzzyMultiMap::new();
+        let mut m: FuzzyMap<HashSet<i32>> = FuzzyMap::new();
         m.insert("foo", HashSet::from([1, 2]));
         m.insert("bar", HashSet::from([3]));
         m.insert("baz", HashSet::from([4, 5]));
@@ -112,7 +112,7 @@ mod tests {
     fn the_same_source_aggregates_in_any_semiring() {
         // The string source feeding the prototype's semirings: Count = number of fuzzy
         // matches, Tropical = best (min) edit distance.
-        let mut m: FuzzyMultiMap<()> = FuzzyMultiMap::new();
+        let mut m: FuzzyMap<()> = FuzzyMap::new();
         for k in ["foo", "bar", "baz", "bat"] {
             m.insert(k, ());
         }
@@ -123,7 +123,7 @@ mod tests {
         let best = m.query::<Tropical>("bat", 2, |_, _, d| Tropical(Some(d as i64)));
         assert_eq!(best, Tropical(Some(0)));
         // best distance when "bat" itself is absent (within 1 of "far"): bar at distance 1.
-        let mut m2: FuzzyMultiMap<()> = FuzzyMultiMap::new();
+        let mut m2: FuzzyMap<()> = FuzzyMap::new();
         for k in ["foo", "bar", "baz"] {
             m2.insert(k, ());
         }
