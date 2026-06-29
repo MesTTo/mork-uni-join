@@ -1,0 +1,13 @@
+[package]
+name = "mork-uni-join"
+version = "0.1.0"
+edition = "2021"
+description = "Prototype: a worst-case-optimal join that unifies over non-ground (schematic) MORK data. Relational e-matching skeleton + substitution-tree non-ground retrieval + WAM trail."
+
+[lib]
+name = "mork_uni_join"
+path = "src/lib.rs"
+
+# Stable Rust, zero dependencies, so it builds and runs anywhere for a demo.
+[profile.test]
+opt-level = 0
