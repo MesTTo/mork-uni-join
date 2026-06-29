@@ -160,7 +160,7 @@ descent, parameterized by a semiring for cost and a lattice for types):
   multidimensional points become trie paths and a box query a range scan (validated against
   brute force). The orthogonal-finite-dimension fuzzy case, native to the trie.
 - `string_fuzzy.rs` — the string / edit-distance source (separate, since strings are
-  non-orthogonal). Reproduces liblevenshtein-rust's `FuzzyMultiMap` shape; its "aggregate
-  the matched values" is the same semiring `add` (set-union / min / count).
+  non-orthogonal): fuzzy-match keys within an edit distance, then aggregate the matched
+  values with the semiring `add` (set-union / min / count).
 
 Ahmad Mesto (MesTTo)

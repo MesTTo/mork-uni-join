@@ -1,24 +1,19 @@
-//! The string / edit-distance fuzzy source. The meeting scoped this as a SEPARATE source
-//! (strings are non-orthogonal, they do not ride the trie's prefix structure), and the
-//! production version is liblevenshtein-rust (vinary-tree, built for MORK: its
-//! `examples/mork_fuzzy_query.rs` fuzzy-queries a MORK `PathMap` zero-copy via `PathMapRef`
-//! under the `pathmap-backend` feature, using a Levenshtein automaton walking the trie).
+//! The string / edit-distance fuzzy source. The meeting scoped this as a SEPARATE source:
+//! strings are non-orthogonal (an insert reindexes every later position), so they do not
+//! ride the trie's prefix structure and need their own edit-distance machinery rather than
+//! the lattice/semiring descent.
 //!
-//! That crate depends on a sibling `libdictenstein` crate by local path, so rather than
-//! bundle the whole chain (which would not resolve for anyone cloning this repo), this
-//! module reproduces its `FuzzyMultiMap` shape minimally and zero-dep, to show the one
-//! thing that matters for the integration: the string source feeds the SAME semiring
-//! aggregation as everything else in this prototype.
-//!
-//! FuzzyMultiMap's operation is: fuzzy-match the keys within an edit distance, then
-//! AGGREGATE the matched keys' values. That aggregation is exactly the semiring `add`:
-//! set-union for a set value, `min` distance for Tropical, a count for Count.
+//! The point of this module is to show that such a source still plugs into the SAME
+//! semiring aggregation as the rest of the prototype: fuzzy-match the keys within an edit
+//! distance, then aggregate the matched values with the semiring `add` (set-union, or min
+//! distance, or a count). A production version would walk the trie with a Levenshtein
+//! automaton instead of the brute-force edit-distance scan used here.
 
 use crate::semiring::Semiring;
 use std::collections::HashSet;
 
 /// Standard Levenshtein edit distance (insert / delete / substitute), Wagner-Fischer DP.
-/// liblevenshtein uses a Levenshtein automaton for scale; this is the obvious reference.
+/// A Levenshtein automaton would scale this; the DP is the obvious reference.
 pub fn edit_distance(a: &str, b: &str) -> usize {
     let a: Vec<char> = a.chars().collect();
     let b: Vec<char> = b.chars().collect();
@@ -35,9 +30,8 @@ pub fn edit_distance(a: &str, b: &str) -> usize {
     prev[b.len()]
 }
 
-/// A fuzzy multimap with the same shape as liblevenshtein's `FuzzyMultiMap`: keys carry
-/// values, a query fuzzy-matches the key within an edit distance and aggregates the
-/// matched values.
+/// A fuzzy multimap: keys carry values, a query fuzzy-matches the key within an edit
+/// distance and aggregates the matched values.
 #[derive(Default)]
 pub struct FuzzyMultiMap<V> {
     entries: Vec<(String, V)>,
@@ -74,9 +68,9 @@ impl<V> FuzzyMultiMap<V> {
 }
 
 impl FuzzyMultiMap<HashSet<i32>> {
-    /// The literal liblevenshtein `FuzzyMultiMap` operation: union the value sets of every
-    /// key within `max_distance`. Set union is the `add` of a set-union semiring, so this
-    /// is the same aggregation the generic `query` performs, specialized to sets.
+    /// Union the value sets of every key within `max_distance`. Set union is the `add` of a
+    /// set-union semiring, so this is the same aggregation the generic `query` performs,
+    /// specialized to sets.
     pub fn query_union(&self, term: &str, max_distance: usize) -> HashSet<i32> {
         let mut out = HashSet::new();
         for (k, v) in &self.entries {
@@ -105,8 +99,8 @@ mod tests {
 
     #[test]
     fn fuzzy_multimap_unions_matched_values() {
-        // liblevenshtein's own example: foo->{1,2}, bar->{3}, baz->{4,5}; query "bat"
-        // within distance 1 matches bar and baz (not foo), and unions their values.
+        // foo->{1,2}, bar->{3}, baz->{4,5}; query "bat" within distance 1 matches bar and
+        // baz (not foo), and unions their values.
         let mut m: FuzzyMultiMap<HashSet<i32>> = FuzzyMultiMap::new();
         m.insert("foo", HashSet::from([1, 2]));
         m.insert("bar", HashSet::from([3]));

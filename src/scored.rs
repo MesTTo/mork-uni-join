@@ -9,9 +9,9 @@
 //! never the tag bytes). A repeated variable re-checks against its binding carrying a
 //! cost, so a shared join key can match approximately: that is the fuzzy join.
 //!
-//! The string/edit-distance case (liblevenshtein-rust, the Levenshtein-automaton source)
-//! is a separate scored source per the meeting; its FuzzyMultiMap "aggregate the values
-//! of the fuzzy-matched keys" is exactly the `⊕` this module accumulates per answer.
+//! The string/edit-distance case is a separate scored source (see `string_fuzzy.rs`):
+//! "fuzzy-match the keys, aggregate their values" is exactly the `⊕` this module
+//! accumulates per answer.
 
 use crate::oracle::{answer_key, Conj};
 use crate::semiring::{Semiring, Tropical};
