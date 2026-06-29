@@ -15,12 +15,12 @@ lowering, the WAM trail, and the matcher already exist (the MORK fork's `trie_jo
 
 Unification does not need a new join. It needs a routing condition.
 
-> The leapfrog triejoin's per-variable intersection is exact and worst-case-optimal as
-> long as unification resolves every **join-position** variable to a **ground** term. Then
-> the join key is a ground term and the leapfrog's equality intersection is exactly right.
-> A column-wise leapfrog only breaks when a schematic stored fact binds a join variable to
-> a **non-ground** term: then a free data column at a join position gets aliased to a value
-> fixed by another relation, fabricating answers that are not per-fact-tuple unifiers.
+> The leapfrog triejoin's per-variable intersection is exact and worst-case-optimal when
+> unification resolves every **join-position** variable to a **ground** term. That is the
+> common case, and it includes queries that genuinely need unification. When a schematic
+> stored fact binds a join variable to a **non-ground** term, the prototype takes a coupled
+> per-tuple path instead. Both paths are validated, byte-for-byte, against a naive reference
+> matcher.
 
 So the integration is:
 
@@ -100,21 +100,22 @@ position) is computable from the lowered pattern factors during planning.
   scored/fuzzy extension is the same join over a tropical semiring (FAQ, Abo
   Khamis-Ngo-Rudra, PODS 2016); exact unification is the Boolean semiring instance.
 
-## Why the divergence is real (the witness)
+## The two paths
 
-The honest core of the result is that a column-wise leapfrog and the operational
-unification matcher do not agree on schematic-at-join-position data, so you cannot simply
-"run the leapfrog with unification" there. The smallest witness the property test found:
+Column-wise leapfrog intersection and per-tuple unification agree on ground data, and they
+can come apart when a schematic fact puts a data variable on a join position. The routing
+sends exactly that case to the coupled per-tuple path, so both paths match the reference
+matcher. The smallest case the property test surfaced, which routes to the coupled path:
 
 ```
 query:  (r (($x $x) b) a) ,  (r $y $x)        ($x is the join variable)
 space:  (r $m (a b)) (r c b) (r $n (a)) (r $p $q) (r (b (b)) (a))
 ```
 
-A column-wise join binds `$x = b` from one relation and then, from the schematic fact
-`(r $p $q)`, takes `$y` free with `$x` absorbed to `b`, producing `($x=b, $y=free)`. That
-is not the simultaneous unifier of any single fact-tuple, so it is not an answer the
-matcher gives. The coupled path keeps each pattern's variables on one fact and agrees.
+The oracle here is a naive nested-loop unifier: a clear, obviously-correct reference, not a
+verified model of the live `coreferential_transition`. So the validated claim is "the two
+paths agree with this reference on 6000 random cases", and validating against MORK's actual
+matcher is the next step before wiring into the fork.
 
 ## Formal verification (planned)
 
