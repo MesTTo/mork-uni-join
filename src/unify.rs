@@ -41,6 +41,12 @@ impl Env {
         self.trail.push(v);
     }
 
+    /// Bind an (assumed-unbound) variable to a term, recorded on the trail. Public entry
+    /// point for the scored matcher, which binds structurally rather than full-unifying.
+    pub fn bind_var(&mut self, v: u32, t: Term) {
+        self.bind(v, t);
+    }
+
     /// Follow the binding chain at the head of `t` (var -> its binding -> ...), returning
     /// the first non-bound-variable / non-variable term. Shallow (head only).
     pub fn walk<'a>(&'a self, t: &'a Term) -> &'a Term {

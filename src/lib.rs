@@ -14,8 +14,14 @@
 //!   - WAM `unify_value` + trail for the binding store,
 //!   - the leapfrog skeleton of Leapfrog Triejoin.
 
+pub mod antiunify;
 pub mod join;
 pub mod oracle;
+pub mod quantale;
+pub mod scored;
+pub mod semiring;
+pub mod string_fuzzy;
 pub mod term;
 pub mod unify;
 pub mod wcojoin;
+pub mod zorder;

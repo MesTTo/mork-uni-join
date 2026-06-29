@@ -41,7 +41,7 @@ Two consequences that matter:
 ## Run it
 
 ```
-cargo test            # 27 tests, incl. a 6000-case differential oracle (ground + schematic)
+cargo test            # 51 tests: the 6000-case differential oracle, plus the fuzzy layer
 cargo run --example demo
 ```
 
@@ -136,5 +136,31 @@ proof.
   trail; the single-pattern case stays on the fast path.
 - Counting without materializing: the COUNT/EXISTS aggregates (already in the fork) are the
   FAQ / factorized-database direction, and compose with this routing unchanged.
+
+## Extending to fuzzy matching (the lattice + semiring layer)
+
+The exact unification join above is the Boolean corner of a more general engine. These
+modules generalize it along the algebra the design converged on (one engine, the trie
+descent, parameterized by a semiring for cost and a lattice for types):
+
+- `semiring.rs` — the matcher's per-step combine, parameterized by a semiring (mirrors the
+  fork's own `semiring.rs`): Reach (exact), Tropical (best-cost / fuzzy), Count.
+- `scored.rs` — the matcher over that semiring. The Reach instance provably recovers the
+  exact oracle; the Tropical instance makes the join key fuzzy (a shared variable can match
+  approximately, scored by distance), and a query can mix crisp symbolic structure (cost 0
+  or infinity) with a fuzzy number (scored by distance) in one pass.
+- `antiunify.rs` — anti-unification (Plotkin/Reynolds lgg), the lattice join dual to
+  unification's meet (the "union" in a fuzzy descent, and WILLIAM's generalization).
+- `quantale.rs` — fuzzy types as a bitset lattice (meet = unification = AND, join =
+  anti-unification = OR, top = a variable) paired with a cost monoid. A type/arity filter
+  is a meet, so it composes with the join. A bounded lattice plus a cost monoid is a
+  quantale, and by Lawvere a metric space is enrichment over one, so an arbitrary metric is
+  just the cost monoid.
+- `zorder.rs` — a Z-order (Morton) space-filling curve over the trie (the UB-tree idea):
+  multidimensional points become trie paths and a box query a range scan (validated against
+  brute force). The orthogonal-finite-dimension fuzzy case, native to the trie.
+- `string_fuzzy.rs` — the string / edit-distance source (separate, since strings are
+  non-orthogonal). Reproduces liblevenshtein-rust's `FuzzyMultiMap` shape; its "aggregate
+  the matched values" is the same semiring `add` (set-union / min / count).
 
 Ahmad Mesto (MesTTo)
