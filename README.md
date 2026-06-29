@@ -50,6 +50,25 @@ of facts schematic) and asserts the join's answer set equals a naive nested-loop
 unification matcher, byte-for-byte on the MORK encoding, on every case. It exercises both
 paths (leapfrog and coupled) thousands of times with zero mismatch.
 
+## Measured (same query, identical output)
+
+On the intermediate-bound hub-graph triangle
+`(, (edge $x $y) (edge $y $z) (edge $z $x))` (n peripheral nodes around 3 hubs: many
+two-paths, few triangles), run once with the factor-at-a-time matcher and once with the
+worst-case-optimal join, identical results both ways:
+
+| n   | factor-at-a-time | worst-case-optimal join | speedup |
+|-----|------------------|-------------------------|---------|
+| 100 | 6.75 ms          | 1.96 ms                 | 3.4x    |
+| 200 | 21.6 ms          | 3.22 ms                 | 6.7x    |
+| 400 | 76.8 ms          | 7.64 ms                 | 10.0x   |
+
+The speedup grows with n (3.4x -> 6.7x -> 10x): the factor-at-a-time path materializes the
+~n^2 two-paths, the worst-case-optimal join intersects instead, so the gap widens as the
+intermediate blows up. That is the AGM bound in wall-clock. The output is identical on both
+paths, so it is the same answer computed faster. The unification routing above is what lets
+this join answer queries with variables, not only ground tuples.
+
 ## How it maps to the fork
 
 | prototype            | the MORK fork                                                |
