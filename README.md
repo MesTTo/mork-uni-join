@@ -76,12 +76,13 @@ this join answer queries with variables, not only ground tuples.
 | `term.rs`            | `mork_expr` tag bytes (Arity/SymbolSize/NewVar/VarRef), De Bruijn |
 | `unify.rs` (trail)   | the WAM `unify_value` + `TrailRollback`                      |
 | `wcojoin.rs`         | `trie_join` / `generic_join` (the leapfrog primitive)        |
-| `oracle.rs`          | the ProductZipper + `unify` matcher (the complete semantics) |
-| `join.rs` (routing)  | the new bit: feature-gated route at `query_multi`            |
+| `oracle.rs`          | a naive nested-loop unification matcher (the reference oracle) |
+| `join.rs` (routing)  | the new bit: a route that would sit at `query_multi`         |
 
-In the fork, `join.rs`'s leapfrog-safe branch calls `trie_join`; its coupled branch falls
-back to the existing complete matcher. The routing test (a non-ground binding at a join
-position) is computable from the lowered pattern factors during planning.
+None of this is wired into the fork yet; the prototype is standalone. Wiring it would route
+at `query_multi`: the leapfrog-safe branch to `trie_join`, the coupled branch to the
+existing matcher. The routing test (a non-ground binding at a join position) is computable
+from the lowered pattern factors at plan time.
 
 ## What this combines (prior art, not reinvented)
 
