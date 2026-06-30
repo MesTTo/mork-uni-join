@@ -1,220 +1,131 @@
 # A worst-case-optimal trie-join that unifies over schematic data
 
-The worst-case-optimal trie-join is fast, but it joins ground tuples. This is a small Rust
-prototype for the case it cannot do on its own: a space whose stored facts carry variables
-of their own (schematic facts), so the join has to agree with unification. MORK's sidecar
-declines that case wholesale (`SidecarSchematicDecline`). The prototype shows the join does
-not need to change; it needs a routing condition.
+The worst-case-optimal trie-join (leapfrog triejoin) is fast, but it joins ground tuples: it
+binds one variable at a time and intersects each variable's domain across relations by equality
+on a sorted key. This is a small Rust prototype that replaces that equality intersection with
+unification, so the same variable-at-a-time trie join works over a space whose stored facts carry
+variables of their own (schematic facts).
 
-Everything it builds on already exists: the leapfrog triejoin, the conjunction lowering, and
-the WAM trail (`trie_join`, `generic_join`, `BindingSidecarPlan` in the fork; `wcojoin.ts`
-and `trail.ts` in MeTTaLingo). This is the layer on top.
+MORK's worst-case-optimal join joins ground tuples, and its sidecar declines schematic facts
+wholesale (`SidecarSchematicDecline`). This join does not decline them.
+Its per-variable intersection is a unification step threaded through a WAM trail, so it stays
+worst-case-optimal on the ground structure while handling the variables in the data.
 
-## The result
+## The join
 
-The leapfrog's per-variable intersection is exact and worst-case-optimal whenever
-unification pins every join-position variable to a ground term. That is the common case, and
-it includes queries that genuinely need unification. When a schematic stored fact would bind
-a join variable to a non-ground term, the prototype takes a coupled per-tuple path instead.
-Both paths return the same answer set, byte for byte, as a naive reference unifier.
+`src/unijoin.rs` is the leapfrog triejoin with unification. Each pattern is matched against the
+space into a relation of bindings, indexed into a trie over the shared variable order. The
+descent binds one variable at a time; at each variable it leads the relation with the smallest
+domain and intersects the rest, but the intersection is unification, not equality:
 
-So the rule is short:
+- when the lead pins the variable to a ground term, each follower finds the match by binary
+  search over its sorted ground children (the worst-case-optimal seek), and its few non-ground
+  children (the wildcards from schematic facts) are merged in by unification;
+- a binding made at one cursor constrains the others through the shared trail, and backtracking
+  restores it in O(1) per binding.
 
-- every join-position binding is ground, take the worst-case-optimal leapfrog (fast),
-- a data variable reaches a join position, take the coupled per-tuple path (correct).
-
-A query that needs unification still rides the fast path, as long as the unification pins the
-join keys to ground values. Take `func_type_unification`: `($f)` unifies with `(f)` to bind
-`$f = f`, a ground value, so the join runs on the leapfrog. That is demo case 2.
-
-This is the per-position view of `SidecarSchematicDecline`. That proof declines a whole body
-the moment any joined relation holds a schematic fact. The prototype admits a schematic fact
-whenever its variables stay off the join positions, and declines only the rest. Demo case 3
-admits a schematic fact, case 4 declines one.
+On ground data this is exactly the ordinary leapfrog, because there unification is equality. On
+schematic data it is the genuine unification join, still variable-at-a-time, with no per-tuple
+nested-loop fallback. It returns the same answers, byte for byte on the MORK encoding, as a full
+nested-loop unifier, checked on 6000 random ground-and-schematic queries and against the answers
+the live MORK ProductZipper produced.
 
 ## Run it
 
 ```
-cargo test            # 51 unit tests plus a check against real MORK answers
+cargo test            # 60 unit tests, a 6000-case differential, and a check against real MORK answers
 cargo run --example demo
-cargo run --release --example bench   # worst-case-optimal join vs a pairwise plan, and a hybrid
+cargo run --release --example bench   # the unification triejoin vs the naive unifier
 ```
-
-The unit differential makes random conjunctive queries over random spaces (about 40% of the
-facts schematic) and checks that the join's answer set equals a naive nested-loop unifier,
-byte for byte on the MORK encoding, on every case. It runs both paths thousands of times with
-no mismatch.
 
 ## Benchmark
 
-The reason to route to the leapfrog is that it is worst-case-optimal. `cargo run --release
---example bench` measures it against a binary (pairwise) join plan on the triangle
-(e $x $y), (e $y $z), (e $x $z), and against a hybrid that picks between the two.
-
-The workload is the shape that separates them. A hub with `s` in-edges and `s` out-edges has
-s^2 two-paths through it but closes no triangle, so it sits next to a small complete digraph
-that contributes a fixed 120 real triangles. A pairwise plan joins two relations first and has
-to materialize every two-path before the third relation rules it out. The leapfrog intersects
-one variable at a time and never builds that intermediate. All three methods return the same
-120 answers, asserted on every row, and the small rows are also checked against the naive
-oracle.
+`cargo run --release --example bench` runs the triangle `(e $x $y), (e $y $z), (e $x $z)` over a
+space that contains schematic edges, and compares the leapfrog-unify join against the naive
+unifier (the full nested-loop matcher, the reference). The workload is the AGM-blowup triangle: a
+hub of `s` in- and out-edges gives s^2 two-paths but no triangle, a small complete digraph gives
+the ground triangles, and a few schematic edges (a node related to a variable) add answers that
+need unification. Both methods return identical answers on every row.
 
 ```
-       N         2-paths   lf_visits   pairwise_ms   leapfrog_ms    hybrid_ms       pick
-  --------------------------------------------------------------------------------------
-      62             406         190         0.022         0.135        0.024   pairwise
-      94            1174         222         0.033         0.185        0.037   pairwise
-     158            4246         286         0.066         0.291        0.073   pairwise
-     286           16534         414         0.177         0.511        0.188   pairwise
-     542           65686         670         0.565         0.944        0.592   pairwise
-    1054          262294        1182         2.093         1.843        1.911   leapfrog
-    2078         1048726        2206         7.989         3.706        3.865   leapfrog
-    4126         4194454        4254        31.464         7.918        7.991   leapfrog
-    8222        16777366        8350       123.818        19.534       20.217   leapfrog
-   16414        67109014       16542       491.764        44.470       45.265   leapfrog
+   N     sch  decline_ans  uni_ans   naive_ms  leapfrog_ms   speedup
+   65      3      120        270        6.767      0.267       25.3x
+   97      3      120        366       21.030      0.361       58.3x
+  161      3      120        558      104.117      0.521      200.0x
+  289      3      120        942      683.135      0.895      763.0x
+  545      3      120       1710     4831.741      1.702     2839.1x
 ```
 
-The two middle columns are the result and they do not depend on either implementation. The
-two-paths a pairwise plan materializes grow with the square of the edge count, 406 up to 67
-million. The leapfrog's node-visits grow linearly, 190 up to 16,542. Their ratio is the AGM
-separation and it widens without bound.
+Two things, both measured. The leapfrog-unify join scales near-linearly where the naive unifier
+is quadratic, so the gap widens with size (2839x at 545 edges, and about 8870x at a thousand
+before the example caps the slow naive rows). And unification is doing the work, not decorating
+it: declining the schematic facts finds 120 answers, the unification join finds 1710, the
+difference being exactly the triangles the schematic edges complete.
 
-The wall-clock is honest about the constant factor. The leapfrog builds a trie keyed on the
-MORK byte encoding, so below about a thousand edges it is slower than the pairwise plan while
-the intermediate is still small. Past the crossover the quadratic intermediate takes over and
-the leapfrog pulls away, from parity at a thousand edges to 11x at sixteen thousand and
-widening.
+The honest framing of the speedup: the baseline is the naive nested-loop unifier, and the gap is
+the AGM separation (worst-case-optimal versus a quadratic intermediate) now holding with
+unification in the loop. It is not a number against a tuned engine; it is the cost of doing
+unification the naive way versus doing it inside a worst-case-optimal join.
 
-So which plan wins is data-dependent, and the right move is to choose per query. The `hybrid`
-column does exactly that: it counts the two-path intermediate in one linear pass (the sum of
-in-degree times out-degree) and routes to the leapfrog only when that count is large, so it
-tracks the lower envelope. That is the toy version of cost-based plan selection.
+## When it is worst-case-optimal
 
-## Choosing the plan: the fork already does this
+The seek is worst-case-optimal exactly when the join keys come out ground. That is the common
+case, and it includes queries that genuinely need unification: in `func_type_unification`, `($f)`
+unifies with `(f)` to bind `$f = f`, a ground value, so the join key is ground and the seek is a
+binary search. When a data variable from a schematic fact reaches a join key, that key is not
+ground, equality is strictly weaker than unification, and the intersection branches by the
+unification fan-out instead of seeking. The join stays correct there (it is the same trail-backed
+unification), it just is not sublinear on that variable. So it is worst-case-optimal on the
+ground structure and unification-complete everywhere.
 
-The size threshold in the benchmark is a stand-in. The public fork picks a physical join
-kernel per query from a real cost model, and it reads straight from the source in `MesTTo/MORK`:
+## Formal verification
 
-- `binding_plan.rs`: `BindingSidecarPlan::choose_execution` returns a
-  `BindingSidecarExecutionChoice`, picking one of four `BindingSidecarExecutionKernel`s
-  (`GenericJoin`, `TrieJoinSuggested`, `AcyclicYannakakis`, `GhdYannakakis`) and recording why
-  in a `BindingSidecarExecutionReason`. `BindingSidecarPlan::body_is_acyclic` and
-  `BindingSidecarRoutingCost` gate the decision.
-- `binding_space.rs`: the cost model that choice reads, `agm_size_bound` (the integral AGM
-  output bound), `ghd_size_cost`, `min_edge_cover`, `selectivity_variable_order`, and the
-  precomputed `cover_cost_table`.
-- `space.rs`: `body_is_cyclic` gates the cyclic flip, and `bench_triangle_join_metta` /
-  `bench_triangle_sparse_join_metta` run the same triangle-with-a-hub workload as the table
-  above, end to end through `metta_calculus`.
-
-So the structure-aware, cost-aware form of the size switch is already there: an acyclic body
-goes to a Yannakakis full reducer, a bare cyclic core stays on the trie leapfrog, and the AGM
-and GHD size bounds decide between a global worst-case-optimal join and a hypertree
-decomposition.
+That condition is machine-checked. `proofs/RoutingSafe.thy` proves in Isabelle/HOL (Isabelle2025-2,
+no `sorry`, no `oops`, no axioms, builds clean) that on ground terms two terms unify if and only
+if they are equal (`ground_unifiable_iff_eq`), and lifts it to the join: under ground join keys
+the unification-join equals the equality-join (`leapfrog_safe_join_eq`), with a witness that off
+the ground case unification is strictly weaker (`nonground_unifiable_strictly_weaker`). That is
+why the seek is exact on ground keys and why the schematic case must branch. The proof is of the
+condition's soundness, an abstract model; it does not verify the Rust implementation, which the
+6000-case differential and the ProductZipper fixture cover. Reproduce it with
+`cd proofs && isabelle build -d . UniJoinRoutingSafe`.
 
 ## Checked against the real MORK matcher
 
 The unit differential checks the join against this crate's own unifier. The other check uses
-MORK's actual matcher: `tests/mork_fixture.txt` holds answers the live ProductZipper
-produced. Each line is a body, a space, and the ground answers MORK
-emitted, captured by running `exec` and `metta_calculus` through the real matcher and rendered
-with this crate's decoder. `tests/against_real_mork.rs` replays each case through the join and
-checks two things: the join never misses a ground answer the matcher produced, and where they
-differ it is only the join finding more.
+MORK's actual matcher: `tests/mork_fixture.txt` holds answers the live ProductZipper produced,
+each line a body, a space, and the ground answers MORK emitted, captured by running `exec` and
+`metta_calculus` through the real matcher and rendered with this crate's decoder.
+`tests/against_real_mork.rs` replays each case through the join and checks that it never misses a
+ground answer the matcher produced, and that where they differ it is only the join finding more.
+On the captured corpus, 24 cases: 23 match the live matcher exactly. On the 24th the join returns
+two extra answers, both needing a stored variable to match a compound (data-side capture); the
+naive reference unifier returns them too. That case is the subtle part of the matcher semantics,
+and the fixture does not try to settle it.
 
-On the captured corpus, 24 cases: 23 match the live matcher exactly. On the 24th the join
-returns two extra answers, both needing a stored variable to match a compound (data-side
-capture); the naive reference unifier returns them too. That case is the subtle part of the
-matcher semantics, and this fixture does not try to settle it. What it pins down is the
-direction that matters: the join never misses an answer the matcher produced.
+## What it extends
 
-## How it maps to the fork
+MORK's worst-case-optimal join (`generic_join`, `trie_join` in the fork) intersects by exact key
+over ground tuples. This is the same trie-cursor skeleton with the intersection promoted to
+unification, which is what lets it run over a space that holds variables, the case MORK's sidecar
+declines.
 
-| prototype           | the MORK fork                                                     |
-|---------------------|-------------------------------------------------------------------|
-| `term.rs`           | `mork_expr` tag bytes (Arity/SymbolSize/NewVar/VarRef), De Bruijn  |
-| `unify.rs` (trail)  | the WAM `unify_value` plus `TrailRollback`                         |
-| `wcojoin.rs`        | `trie_join` / `generic_join`, the leapfrog primitive              |
-| `oracle.rs`         | a naive nested-loop unifier, the reference                        |
-| `join.rs` (routing) | the routing condition over the `any_schematic_fact_under_prefixes` decline |
+The pieces are prior art; the combination is the new part. Worst-case-optimal joins come from
+Leapfrog Triejoin (Veldhuizen, ICDT 2014), generic join (Ngo, Porat, Re, Rudra, PODS 2012), and
+the AGM bound (Atserias, Grohe, Marx, FOCS 2008). Relational e-matching (Zhang, Wang, Willsey,
+Tatlock, POPL 2022) makes generic join worst-case-optimal for matching but assumes ground e-class
+ids; the non-ground data case is what it leaves out and what this handles. Substitution and
+discrimination trees (Graf 1995; Ramakrishnan, Sekar, Voronkov, Handbook of Automated Reasoning
+2001) retrieve unifiable non-ground terms, but for a single relation, not a multi-way join. The
+unification and anti-unification lattice (Plotkin, Reynolds 1970) gives the algebra: unification
+is the meet. The per-binding store with O(1) rollback is the WAM trail.
 
-The fork's sidecar runs a conjunctive body on the worst-case-optimal join, and declines the
-whole body to the ProductZipper the moment any joined relation holds a schematic fact
-(`any_schematic_fact_under_prefixes`). This prototype is the routing that refines that decline
-per position: a schematic fact would stay on the fast join when each of its variables sits
-only on an output-only position, never on a constant (which would need capture) and never on a
-join key (which another factor would ground). It runs against materialized relations here, and
-the condition is computable from the lowered factors at plan time.
+## Exploratory: fuzzy matching
 
-## What this combines
-
-The pieces are all prior art. The combination is the new part.
-
-Worst-case-optimal joins come from Leapfrog Triejoin (Veldhuizen, ICDT 2014), generic join
-(Ngo, Porat, Re, Rudra, PODS 2012), and the AGM bound (Atserias, Grohe, Marx, FOCS 2008).
-Relational e-matching (Zhang, Wang, Willsey, Tatlock, POPL 2022) compiles a pattern to a
-conjunctive query and solves it with generic join, but it assumes ground e-class ids. The
-non-ground data case is exactly what it leaves out and what this handles. Substitution and
-discrimination trees (Graf 1995; Ramakrishnan, Sekar, Voronkov, Handbook of Automated
-Reasoning 2001) index and retrieve non-ground terms; their normalized variables are MORK's De
-Bruijn levels. The per-binding store with O(1) rollback is the WAM trail. The unification and
-anti-unification lattice (Plotkin, Reynolds 1970) gives the algebra: unification is the meet,
-anti-unification the join, and the subsumption lattice embeds in the set lattice. The scored
-extension is the same join over a tropical semiring (the FAQ framework, Abo Khamis, Ngo,
-Rudra, PODS 2016), with exact unification as the Boolean corner.
-
-## The two paths
-
-Column-wise leapfrog intersection and per-tuple unification agree on ground data. They can
-come apart when a schematic fact puts a data variable on a join position. The routing sends
-exactly that case to the coupled path, so both paths match the reference. The smallest case
-the property test found, which routes to the coupled path:
-
-```
-query:  (r (($x $x) b) a) ,  (r $y $x)        ($x is the join variable)
-space:  (r $m (a b)) (r c b) (r $n (a)) (r $p $q) (r (b (b)) (a))
-```
-
-The reference is a naive nested-loop unifier, clear and obviously correct, not a model of the
-live matcher. The two paths agree with it on 6000 random cases, and the join is separately
-checked against MORK's actual ProductZipper (the fixture above): 23 of 24 identical, and the
-join never misses.
-
-## Formal verification
-
-Sketched, not done. The fork verifies code in Verus (`VarRefRecheck.rs`,
-`SidecarSchematicDecline.rs`) and abstract laws in Lean. The statement here is that the routed
-join's answer set equals the `complete_match` semantics, both soundness and completeness, with
-the leapfrog-safe condition as the precondition for the fast path. It is the dual of what
-`SidecarSchematicDecline` already proves. It is a small Isabelle/HOL target on the AFP
-`First_Order_Terms` entry, scoped to the core lemma, not a full end-to-end proof.
-
-## Connections to the measured bottlenecks
-
-The triangle in the benchmark above is the leapfrog's home ground, the permutation blowup where
-a pairwise materialize pays the quadratic intermediate. The same routing touches the other
-shapes too. Deep unary Peano terms lean on the trie's prefix sharing and the zero-allocation
-trail, and a single-pattern query stays on the fast path. Counting without materializing is the
-COUNT and EXISTS aggregates already in the fork (`GenericJoinCount`, `GenericJoinExistence` in
-`binding_space.rs`), the factorized-database direction, and it composes with this routing
-unchanged.
-
-## Extending to fuzzy matching
-
-The exact unification join is the Boolean corner of a more general engine: one trie descent,
-parameterized by a semiring for cost and a lattice for types. The modules in `src/` build that
-out.
-
-`semiring.rs` is the per-step combine, parameterized over Reach (exact), Tropical (best-cost),
-and Count. `scored.rs` runs the matcher over it: the Reach instance recovers the exact oracle,
-and the Tropical instance makes a shared variable match approximately by distance, so one pass
-can mix a symbol that must match exactly with a number scored by how close it is. `antiunify.rs`
-is anti-unification, the lattice join dual to unification's meet. `quantale.rs` makes a fuzzy
-type a bitset lattice (meet is unification, join is anti-unification, top is a variable) paired
-with a cost monoid; a type or arity filter is one more meet, so it composes for free, and a
-bounded lattice with a cost monoid is a quantale, which by Lawvere is what a metric space is
-enriched over. `zorder.rs` lays a Morton curve over the trie so a box query becomes a range
-scan, checked against brute force. `string_fuzzy.rs` is the edit-distance source, kept separate
-because strings reindex on insert and do not ride the trie's prefix structure.
+The exact unification join is the Boolean corner of a more general engine: the same trie descent
+parameterized by a semiring for cost and a lattice for types. The `semiring.rs`, `scored.rs`,
+`antiunify.rs`, `quantale.rs`, and `zorder.rs` modules sketch that out (a tropical semiring scores
+a near-miss by distance, anti-unification is the lattice dual, a Morton curve turns a box query
+into a range scan). These are exploratory, not load-bearing for the join above.
 
 Ahmad Mesto (MesTTo)

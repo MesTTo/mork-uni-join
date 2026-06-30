@@ -20,7 +20,7 @@
 //! if any fact is schematic) to a per-position admission: admit schematic facts into the
 //! worst-case-optimal join whenever their variables do not land on a join position.
 
-use crate::oracle::{naive_match, Conj};
+use crate::oracle::Conj;
 use crate::term::Term;
 use crate::unify::Env;
 use crate::wcojoin::{wco_join, Relation};
@@ -94,9 +94,11 @@ pub fn uni_join(q: &Conj, space: &[Term]) -> (BTreeSet<Vec<u8>>, Stats) {
     }
 
     if !leapfrog_safe {
-        // A data variable reached a join position: the coupled per-tuple path is correct.
+        // A data variable reached a join position. Stay on the leapfrog, but make its
+        // per-variable intersection a unification step: the unification triejoin handles the
+        // schematic case worst-case-optimally rather than falling back to a nested loop.
         return (
-            naive_match(q, space),
+            crate::unijoin::leapfrog_unify_join(q, space),
             Stats {
                 path: Path::Coupled,
                 leapfrog_visits: 0,
@@ -129,6 +131,7 @@ pub fn uni_join(q: &Conj, space: &[Term]) -> (BTreeSet<Vec<u8>>, Stats) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::oracle::naive_match;
     use crate::term::parse;
 
     fn space(facts: &[&str]) -> Vec<Term> {

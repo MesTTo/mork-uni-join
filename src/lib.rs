@@ -23,5 +23,6 @@ pub mod semiring;
 pub mod string_fuzzy;
 pub mod term;
 pub mod unify;
+pub mod unijoin;
 pub mod wcojoin;
 pub mod zorder;
