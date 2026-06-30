@@ -107,20 +107,27 @@ and the fixture does not try to settle it.
 
 The join is no longer a standalone prototype. It is ported into the MORK kernel and runs on the real
 flip path. When the sidecar would decline a cyclic body to the ProductZipper because a joined relation
-holds a schematic fact, the templates are driven from this join instead, as long as no data variable
-would capture a non-ground query compound (the issue-29 boundary, where unification finds more than the
-ProductZipper). Off that case the two agree, so the route is byte-identical to the matcher it replaces.
+holds a schematic fact, the templates are driven from this join instead, as long as neither the query
+nor a schematic fact under a join prefix carries a non-ground compound. That is the conservative
+boundary for issue-29 data-side capture (a stored variable binding a non-ground compound, the one place
+unification finds more than the ProductZipper): a non-ground compound is the only thing such a capture
+can latch onto, and unification never fabricates one that is not already in the syntax, so off that
+case the two joins agree and the route is byte-identical to the matcher it replaces.
 
 The port is byte-safe: symbols are raw bytes, so it consumes MORK's tag-byte encoding directly, and a
 5000-case differential cross-checks it against this prototype. Only ground answer components bind for
 the emit, because a ground term carries no variable identity to collide under MORK's `(n, v)` variable
 scheme; a template over a non-ground variable instantiates fresh and the non-ground row the exec drops.
 
-The correctness gate is a live A/B differential through `metta_calculus`. It runs 1500 random cyclic
-schematic bodies twice, once with the route on and once forced onto the ProductZipper, and asserts the
-emitted ground answers are byte-for-byte identical. The corpus spans arity-2 edge cycles and arity-3
-rotation cycles over several relations with nested schematic facts; the route fires on about 970 of
-them and never diverges. The full kernel test suite (362 tests) passes unchanged with the route on.
+The correctness gate is a pair of live A/B differentials through `metta_calculus`, each running cyclic
+schematic bodies twice, route on versus forced onto the ProductZipper, asserting the emitted ground
+answers are byte-for-byte identical. The broad one (1500 cases) spans arity-2 edge cycles and arity-3
+rotation cycles over several relations. The adversarial one (3000 cases) adds mixed relations in one
+cycle, compound-wrapped endpoints, and coreferent and two-deep nested schematic facts; it is what
+caught the subtle case, where a per-factor capture check missed capture propagated through the join
+(`(out (k v0) (k v0))` needing three stored variables to bind the same compound), and pinned the
+conservative gate above. Both never diverge. The full kernel test suite (363 tests) passes unchanged
+with the route on.
 
 The recovery, measured against the real ProductZipper rather than the naive unifier, is the AGM
 separation on the live path. The same cyclic triangle over a hub-blowup space with schematic edges on a
