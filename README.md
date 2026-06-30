@@ -37,12 +37,80 @@ admits a schematic fact, case 4 declines one.
 ```
 cargo test            # 51 unit tests plus a check against real MORK answers
 cargo run --example demo
+cargo run --release --example bench   # worst-case-optimal join vs a pairwise plan, and a hybrid
 ```
 
 The unit differential makes random conjunctive queries over random spaces (about 40% of the
 facts schematic) and checks that the join's answer set equals a naive nested-loop unifier,
 byte for byte on the MORK encoding, on every case. It runs both paths thousands of times with
 no mismatch.
+
+## Benchmark
+
+The reason to route to the leapfrog is that it is worst-case-optimal. `cargo run --release
+--example bench` measures it against a binary (pairwise) join plan on the triangle
+(e $x $y), (e $y $z), (e $x $z), and against a hybrid that picks between the two.
+
+The workload is the shape that separates them. A hub with `s` in-edges and `s` out-edges has
+s^2 two-paths through it but closes no triangle, so it sits next to a small complete digraph
+that contributes a fixed 120 real triangles. A pairwise plan joins two relations first and has
+to materialize every two-path before the third relation rules it out. The leapfrog intersects
+one variable at a time and never builds that intermediate. All three methods return the same
+120 answers, asserted on every row, and the small rows are also checked against the naive
+oracle.
+
+```
+       N         2-paths   lf_visits   pairwise_ms   leapfrog_ms    hybrid_ms       pick
+  --------------------------------------------------------------------------------------
+      62             406         190         0.022         0.135        0.024   pairwise
+      94            1174         222         0.033         0.185        0.037   pairwise
+     158            4246         286         0.066         0.291        0.073   pairwise
+     286           16534         414         0.177         0.511        0.188   pairwise
+     542           65686         670         0.565         0.944        0.592   pairwise
+    1054          262294        1182         2.093         1.843        1.911   leapfrog
+    2078         1048726        2206         7.989         3.706        3.865   leapfrog
+    4126         4194454        4254        31.464         7.918        7.991   leapfrog
+    8222        16777366        8350       123.818        19.534       20.217   leapfrog
+   16414        67109014       16542       491.764        44.470       45.265   leapfrog
+```
+
+The two middle columns are the result and they do not depend on either implementation. The
+two-paths a pairwise plan materializes grow with the square of the edge count, 406 up to 67
+million. The leapfrog's node-visits grow linearly, 190 up to 16,542. Their ratio is the AGM
+separation and it widens without bound.
+
+The wall-clock is honest about the constant factor. The leapfrog builds a trie keyed on the
+MORK byte encoding, so below about a thousand edges it is slower than the pairwise plan while
+the intermediate is still small. Past the crossover the quadratic intermediate takes over and
+the leapfrog pulls away, from parity at a thousand edges to 11x at sixteen thousand and
+widening.
+
+So which plan wins is data-dependent, and the right move is to choose per query. The `hybrid`
+column does exactly that: it counts the two-path intermediate in one linear pass (the sum of
+in-degree times out-degree) and routes to the leapfrog only when that count is large, so it
+tracks the lower envelope. That is the toy version of cost-based plan selection.
+
+## Choosing the plan: the fork already does this
+
+The size threshold in the benchmark is a stand-in. The public fork picks a physical join
+kernel per query from a real cost model, and it reads straight from the source in `MesTTo/MORK`:
+
+- `binding_plan.rs`: `BindingSidecarPlan::choose_execution` returns a
+  `BindingSidecarExecutionChoice`, picking one of four `BindingSidecarExecutionKernel`s
+  (`GenericJoin`, `TrieJoinSuggested`, `AcyclicYannakakis`, `GhdYannakakis`) and recording why
+  in a `BindingSidecarExecutionReason`. `BindingSidecarPlan::body_is_acyclic` and
+  `BindingSidecarRoutingCost` gate the decision.
+- `binding_space.rs`: the cost model that choice reads, `agm_size_bound` (the integral AGM
+  output bound), `ghd_size_cost`, `min_edge_cover`, `selectivity_variable_order`, and the
+  precomputed `cover_cost_table`.
+- `space.rs`: `body_is_cyclic` gates the cyclic flip, and `bench_triangle_join_metta` /
+  `bench_triangle_sparse_join_metta` run the same triangle-with-a-hub workload as the table
+  above, end to end through `metta_calculus`.
+
+So the structure-aware, cost-aware form of the size switch is already there: an acyclic body
+goes to a Yannakakis full reducer, a bare cyclic core stays on the trie leapfrog, and the AGM
+and GHD size bounds decide between a global worst-case-optimal join and a hypertree
+decomposition.
 
 ## Checked against the real MORK matcher
 
@@ -123,11 +191,13 @@ the leapfrog-safe condition as the precondition for the fast path. It is the dua
 
 ## Connections to the measured bottlenecks
 
-The permutation benchmark is the leapfrog's home ground: it wins the AGM bound over the O(N^2)
-pairwise materialize, which is the permutation blowup. Deep unary Peano terms benefit from the
-trie's prefix sharing and the zero-allocation trail, and the single-pattern case stays on the
-fast path. Counting without materializing is the COUNT and EXISTS aggregates, already in the
-fork, the factorized-database direction, and it composes with this routing unchanged.
+The triangle in the benchmark above is the leapfrog's home ground, the permutation blowup where
+a pairwise materialize pays the quadratic intermediate. The same routing touches the other
+shapes too. Deep unary Peano terms lean on the trie's prefix sharing and the zero-allocation
+trail, and a single-pattern query stays on the fast path. Counting without materializing is the
+COUNT and EXISTS aggregates already in the fork (`GenericJoinCount`, `GenericJoinExistence` in
+`binding_space.rs`), the factorized-database direction, and it composes with this routing
+unchanged.
 
 ## Extending to fuzzy matching
 
