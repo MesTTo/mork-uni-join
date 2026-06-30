@@ -17,6 +17,7 @@
 pub mod antiunify;
 pub mod corpus;
 pub mod join;
+pub mod randgen;
 pub mod oracle;
 pub mod quantale;
 pub mod scored;
