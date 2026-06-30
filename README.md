@@ -147,6 +147,12 @@ The ProductZipper materializes the s^2 two-paths the worst-case-optimal join pru
 with the hub. This is single-to-low-double digits, not the prototype bench's thousands, because the
 baseline here is the real matcher, not a quadratic nested loop.
 
+The route reads its facts through the PathMap index, descending to each relation prefix on the same
+snapshot the ProductZipper reads, not by scanning the whole space. Flooding the space with unrelated
+facts leaves the route's time flat where a full scan climbed with the space size, so its cost tracks
+the joined relations. It still materializes those relation facts into the join's tries; streaming the
+join straight off the PathMap zipper is the remaining zero-copy step.
+
 The route is on by default; `MORK_UNIFY_ROUTE=0` forces the ProductZipper for an A/B run. Its scope is
 exactly the cyclic-join-over-schematic-data case: it fires only on a cyclic body with a schematic fact
 under a join prefix. A two-factor linear join like process_calculus's petri rule never reaches the
