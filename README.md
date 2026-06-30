@@ -4,8 +4,8 @@ The worst-case-optimal trie-join is fast, but it joins ground tuples. This is a 
 prototype for the case it cannot do on its own: a space whose stored facts carry variables
 of their own (schematic facts), so the join has to agree with unification. MORK's sidecar
 declines that case wholesale (`SidecarSchematicDecline`). The prototype shows the join does
-not need to change; it needs a routing condition. That condition is now wired into the
-fork's sidecar.
+not need to change; it needs a routing condition. The same condition is implemented and
+validated in a working branch of the fork, not yet in the public release.
 
 Everything it builds on already exists: the leapfrog triejoin, the conjunction lowering, and
 the WAM trail (`trie_join`, `generic_join`, `BindingSidecarPlan` in the fork; `wcojoin.ts`
@@ -59,8 +59,8 @@ On the captured corpus, 24 cases: 23 match the live matcher exactly. On the 24th
 returns two extra answers, both needing a stored variable to match a compound (data-side
 capture); the naive reference unifier returns them too. That case is the subtle part of the
 matcher semantics, and this fixture does not try to settle it. What the check pins down is the
-direction that matters: the join never misses an answer the matcher produced. The full random
-version lives in the fork's own tests, 500 cases, 499 identical, same direction held.
+direction that matters: the join never misses an answer the matcher produced. A larger random
+version (500 cases) runs in a working branch of the fork, 499 identical, same direction held.
 
 ## What the coarse decline costs
 
@@ -85,7 +85,8 @@ The penalty grows with n because the ProductZipper materializes the roughly n^2 
 while the join intersects instead, so the gap widens as the intermediate blows up. That is the
 AGM bound in wall-clock. One inert schematic fact forfeits all of it. Per-position routing
 recovers it: a schematic fact whose variables never reach a join position stays on the fast
-join. The number comes from the fork test `bench_decline_penalty_metta`.
+join. Measured by `bench_decline_penalty_metta` in a working branch of the fork; the
+wholesale decline it isolates is the public fork's behavior today.
 
 ## How it maps to the fork
 
@@ -95,23 +96,24 @@ join. The number comes from the fork test `bench_decline_penalty_metta`.
 | `unify.rs` (trail)  | the WAM `unify_value` plus `TrailRollback`                         |
 | `wcojoin.rs`        | `trie_join` / `generic_join`, the leapfrog primitive              |
 | `oracle.rs`         | a naive nested-loop unifier, the reference                        |
-| `join.rs` (routing) | `schematic_facts_safe_to_admit`, the sidecar admission gate       |
+| `join.rs` (routing) | `schematic_facts_safe_to_admit` (working branch), the admission gate |
 
-The routing is now wired into the fork. It sits where the worst-case-optimal sidecar decides
-whether to take a body. `transform_via_sidecar`'s all-or-nothing schematic decline becomes a
-per-position check. A schematic stored fact stays on the fast join when each of its variables
-sits only on an output-only position, never on a constant (which would need capture) and
-never on a join key (which another factor would ground). Otherwise the body keeps the
+The public fork today has the sidecar (`transform_via_sidecar`) and the all-or-nothing
+schematic decline (`any_schematic_fact_under_prefixes`), the behavior this routing refines. A
+working branch turns that decline into a per-position check (`schematic_facts_safe_to_admit`),
+not yet in the public release. A schematic stored fact stays on the fast join when each of its
+variables sits only on an output-only position, never on a constant (which would need capture)
+and never on a join key (which another factor would ground). Otherwise the body keeps the
 ProductZipper, the same as before. The emit did not change, because it already drops the
 non-ground rows such a fact produces. The check handles nesting on either side: a fact with
 nested structure, and a query factor that decomposes a column.
 
-The check is sound by an adversarial test in the fork: 600 random schematic bodies, nesting
-on both sides, and no admission whose join output differs from the ProductZipper. The
-benchmark shows the payoff. A partial-information fact, a value left unknown, keeps the
-triangle on the worst-case-optimal join instead of declining the whole body, 3.4 to 8.8 times
-faster, with byte-identical output. The `join.rs` here states the same condition against
-materialized relations; the fork applies it inside the live sidecar.
+In that branch the check is sound by an adversarial test: 600 random schematic bodies, nesting
+on both sides, and no admission whose join output differs from the ProductZipper. A benchmark
+shows the payoff: a partial-information fact, a value left unknown, keeps the triangle on the
+worst-case-optimal join instead of declining the whole body, 3.4 to 8.8 times faster, with
+byte-identical output. The `join.rs` here states the same condition against materialized
+relations.
 
 ## What this combines
 
@@ -145,7 +147,8 @@ space:  (r $m (a b)) (r c b) (r $n (a)) (r $p $q) (r (b (b)) (a))
 The reference is a naive nested-loop unifier, clear and obviously correct, not a model of the
 live matcher. The two paths agree with it on 6000 random cases, and the join is separately
 checked against MORK's actual ProductZipper (see above): 499 of 500 identical, and the join
-never misses. The routing is wired into the fork's sidecar, with its own adversarial test.
+never misses. The same routing is implemented in a working branch of the fork, with its own
+adversarial test, not yet in the public release.
 
 ## Formal verification
 
