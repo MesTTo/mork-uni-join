@@ -23,6 +23,8 @@ pub mod scored;
 pub mod semiring;
 pub mod string_fuzzy;
 pub mod term;
+pub mod trie;
+pub mod trie_join;
 pub mod unify;
 pub mod unijoin;
 pub mod wcojoin;
