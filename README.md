@@ -212,11 +212,25 @@ query shows the cost of materializing:
 ```
 
 The lead among the join's factors is chosen by a bounded subterm count, so a selective factor drives
-the join and the rest seek. The honest scope is the compatible-order case, acyclic or otherwise
-orderable, and selective queries. A cyclic query, the triangle the live route handles, is the
-exception: worst-case-optimality on a cycle needs the inverted factor re-indexed into another
-attribute order, and re-indexing is materialization, so the cyclic case cannot be zero-copy and the
-materialized route stays the right tool there.
+the join and the rest seek.
+
+A cyclic query, the triangle the live route handles, has a factor whose columns are out of the binding
+order, so the join cannot seek it forward. That factor, and only that one, is re-indexed into a fresh
+map in binding order, its variables renumbered so a coreferent schematic fact stays sound; the others
+stay zero-copy. That recovers worst-case optimality on the cycle, and because only the inverted factor
+is materialized where the live route decodes every factor into tries, it beats that route, the gap
+widening with size:
+
+```
+  s     ProductZipper   materialized   reindex-zipper
+   64        589 us          304 us         111 us
+  512        25.5 ms        2.47 ms         359 us
+ 2048         401 ms        17.7 ms        1.37 ms
+```
+
+All three return the 120 triangles. Against the materialized route the zipper is 2.7x at s=64 and
+12.9x at s=2048; against the ProductZipper, 293x. The one case left at parity is an acyclic
+output-bound query whose answer is itself s^2, where every join method must enumerate the output.
 
 ## What it extends
 
