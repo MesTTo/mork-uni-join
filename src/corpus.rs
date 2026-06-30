@@ -53,6 +53,22 @@ static CASES: &[Case] = &[
         facts: &["(: (f) A)", "(: f (-> A))"],
         proj: &["f"],
     },
+    // The join-propagated capture that broke the per-factor gate (commit b02fdb4): a stored
+    // variable must capture the non-ground compound `(k $x0)` at one factor, and `$x0` is only
+    // ground after the cycle closes, so the answer `(k v0) (k v0)` exists but no single factor
+    // sees the compound capture locally.
+    Case {
+        name: "join-propagated compound capture (adversarial)",
+        patterns: &["(e (k $x0) $x1)", "(e (k $x1) $x2)", "(h $x2 $x0)"],
+        facts: &["(e (k $s2) v0)", "(e $s1 $s1)", "(h $s0 $s0)"],
+        proj: &["x0", "x1"],
+    },
+    Case {
+        name: "stored variable captures compound at join key",
+        patterns: &["(r (k $x) $y)", "(s $x)"],
+        facts: &["(r $d $e)", "(s v0)"],
+        proj: &["x", "y"],
+    },
     // --- B. coreference: a repeated data variable forces query positions equal ---
     Case {
         name: "coreferent fact forces join equal",
