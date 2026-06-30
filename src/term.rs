@@ -202,6 +202,19 @@ pub fn parse_all(strs: &[&str]) -> Vec<Term> {
         .collect()
 }
 
+/// Parse one S-expression against a caller-owned variable scope, so the same `$name`
+/// keeps the same id across calls no matter which call sees it first. `parse_all` fixes
+/// ids by first occurrence within its own list; this lets the caller fix them once and
+/// reuse them while permuting the patterns, which is how the order-independence test
+/// keeps a stable answer-tuple layout across factor and elimination orderings.
+pub fn parse_with_scope(s: &str, scope: &mut HashMap<String, u32>) -> Term {
+    let toks = tokenize(s);
+    let mut pos = 0usize;
+    let t = parse_one(&toks, &mut pos, scope);
+    assert_eq!(pos, toks.len(), "trailing tokens in {s:?}");
+    t
+}
+
 fn tokenize(s: &str) -> Vec<String> {
     let mut toks = Vec::new();
     let mut cur = String::new();

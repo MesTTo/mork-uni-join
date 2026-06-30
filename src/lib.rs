@@ -15,6 +15,7 @@
 //!   - the leapfrog skeleton of Leapfrog Triejoin.
 
 pub mod antiunify;
+pub mod corpus;
 pub mod join;
 pub mod oracle;
 pub mod quantale;
