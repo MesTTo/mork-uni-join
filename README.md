@@ -103,6 +103,48 @@ two extra answers, both needing a stored variable to match a compound (data-side
 naive reference unifier returns them too. That case is the subtle part of the matcher semantics,
 and the fixture does not try to settle it.
 
+## Wired into MORK's live flip
+
+The join is no longer a standalone prototype. It is ported into the MORK kernel and runs on the real
+flip path. When the sidecar would decline a cyclic body to the ProductZipper because a joined relation
+holds a schematic fact, the templates are driven from this join instead, as long as no data variable
+would capture a non-ground query compound (the issue-29 boundary, where unification finds more than the
+ProductZipper). Off that case the two agree, so the route is byte-identical to the matcher it replaces.
+
+The port is byte-safe: symbols are raw bytes, so it consumes MORK's tag-byte encoding directly, and a
+5000-case differential cross-checks it against this prototype. Only ground answer components bind for
+the emit, because a ground term carries no variable identity to collide under MORK's `(n, v)` variable
+scheme; a template over a non-ground variable instantiates fresh and the non-ground row the exec drops.
+
+The correctness gate is a live A/B differential through `metta_calculus`. It runs 1500 random cyclic
+schematic bodies twice, once with the route on and once forced onto the ProductZipper, and asserts the
+emitted ground answers are byte-for-byte identical. The corpus spans arity-2 edge cycles and arity-3
+rotation cycles over several relations with nested schematic facts; the route fires on about 970 of
+them and never diverges. The full kernel test suite (362 tests) passes unchanged with the route on.
+
+The recovery, measured against the real ProductZipper rather than the naive unifier, is the AGM
+separation on the live path. The same cyclic triangle over a hub-blowup space with schematic edges on a
+join key, run both ways:
+
+```
+   s     unify(WCO)   decline(ProductZipper)   recovery
+  128      1.7 ms            2.7 ms               1.6x
+  256      2.8 ms            7.2 ms               2.6x
+  512      5.5 ms           25.0 ms               4.6x
+ 1024     13.1 ms           97.2 ms               7.4x
+ 2048     29.2 ms          379.6 ms              13.0x
+```
+
+The ProductZipper materializes the s^2 two-paths the worst-case-optimal join prunes, so the gap widens
+with the hub. This is single-to-low-double digits, not the prototype bench's thousands, because the
+baseline here is the real matcher, not a quadratic nested loop.
+
+The route is on by default; `MORK_UNIFY_ROUTE=0` forces the ProductZipper for an A/B run. Its scope is
+exactly the cyclic-join-over-schematic-data case: it fires only on a cyclic body with a schematic fact
+under a join prefix. A two-factor linear join like process_calculus's petri rule never reaches the
+cyclic path, so it neither declines nor routes and is byte-identical either way; ground cyclic benches
+(clique, transitive) carry no schematic facts, so they never trip the gate.
+
 ## What it extends
 
 MORK's worst-case-optimal join (`generic_join`, `trie_join` in the fork) intersects by exact key
@@ -114,11 +156,15 @@ The pieces are prior art; the combination is the new part. Worst-case-optimal jo
 Leapfrog Triejoin (Veldhuizen, ICDT 2014), generic join (Ngo, Porat, Re, Rudra, PODS 2012), and
 the AGM bound (Atserias, Grohe, Marx, FOCS 2008). Relational e-matching (Zhang, Wang, Willsey,
 Tatlock, POPL 2022) makes generic join worst-case-optimal for matching but assumes ground e-class
-ids; the non-ground data case is what it leaves out and what this handles. Substitution and
-discrimination trees (Graf 1995; Ramakrishnan, Sekar, Voronkov, Handbook of Automated Reasoning
-2001) retrieve unifiable non-ground terms, but for a single relation, not a multi-way join. The
-unification and anti-unification lattice (Plotkin, Reynolds 1970) gives the algebra: unification
-is the meet. The per-binding store with O(1) rollback is the WAM trail.
+ids; the non-ground data case is what it leaves out and what this handles. The unification side is
+older still: substitution-tree indexing (Graf 1995, 1996; Ramakrishnan, Sekar, Voronkov, Handbook
+of Automated Reasoning 2001) retrieves unifiable terms with variables on both sides, and Graf's
+simultaneous-unification operations handle whole sets of query substitutions at once. What that
+line does not carry is the worst-case-optimal, variable-at-a-time AGM guarantee. So the new part
+is narrow and specific: the combination, a leapfrog whose intersection is substitution-tree-style
+unification, not either piece alone. The unification and anti-unification lattice (Plotkin,
+Reynolds 1970) gives the algebra: unification is the meet. The per-binding store with O(1)
+rollback is the WAM trail.
 
 ## Exploratory: fuzzy matching
 
