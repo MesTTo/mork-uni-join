@@ -135,11 +135,12 @@ join key, run both ways:
 
 ```
    s     unify(WCO)   decline(ProductZipper)   recovery
-  128      1.7 ms            2.7 ms               1.6x
-  256      2.8 ms            7.2 ms               2.6x
-  512      5.5 ms           25.0 ms               4.6x
- 1024     13.1 ms           97.2 ms               7.4x
- 2048     29.2 ms          379.6 ms              13.0x
+  128      1.8 ms            2.7 ms               1.5x
+  256      2.8 ms            7.8 ms               2.8x
+  512      5.8 ms           26.9 ms               4.7x
+ 1024     13.9 ms          100.2 ms               7.2x
+ 2048     33.0 ms          387.3 ms              11.7x
+ 4096     96.2 ms            1.503 s              15.6x
 ```
 
 The ProductZipper materializes the s^2 two-paths the worst-case-optimal join prunes, so the gap widens
