@@ -4,8 +4,7 @@ The worst-case-optimal trie-join is fast, but it joins ground tuples. This is a 
 prototype for the case it cannot do on its own: a space whose stored facts carry variables
 of their own (schematic facts), so the join has to agree with unification. MORK's sidecar
 declines that case wholesale (`SidecarSchematicDecline`). The prototype shows the join does
-not need to change; it needs a routing condition. The same condition is implemented and
-validated in a working branch of the fork, not yet in the public release.
+not need to change; it needs a routing condition.
 
 Everything it builds on already exists: the leapfrog triejoin, the conjunction lowering, and
 the WAM trail (`trie_join`, `generic_join`, `BindingSidecarPlan` in the fork; `wcojoin.ts`
@@ -28,10 +27,10 @@ A query that needs unification still rides the fast path, as long as the unifica
 join keys to ground values. Take `func_type_unification`: `($f)` unifies with `(f)` to bind
 `$f = f`, a ground value, so the join runs on the leapfrog. That is demo case 2.
 
-This is the per-position refinement of `SidecarSchematicDecline`. The fork's gate declines a
-whole body the moment any joined relation holds a schematic fact. The prototype admits a
-schematic fact whenever its variables stay off the join positions, and declines only the
-rest. Demo case 3 admits a schematic fact, case 4 declines one.
+This is the per-position view of `SidecarSchematicDecline`. That proof declines a whole body
+the moment any joined relation holds a schematic fact. The prototype admits a schematic fact
+whenever its variables stay off the join positions, and declines only the rest. Demo case 3
+admits a schematic fact, case 4 declines one.
 
 ## Run it
 
@@ -50,43 +49,16 @@ no mismatch.
 The unit differential checks the join against this crate's own unifier. To check it against
 MORK's actual matcher without building the fork, `tests/mork_fixture.txt` holds answers the
 live ProductZipper produced. Each line is a body, a space, and the ground answers MORK
-emitted, captured by running `exec` and `metta_calculus` through the real matcher in the fork
-and rendered with this crate's decoder. `tests/against_real_mork.rs` replays each case through
-the join and checks two things: the join never misses a ground answer the matcher produced,
-and where they differ it is only the join finding more.
+emitted, captured by running `exec` and `metta_calculus` through the real matcher and rendered
+with this crate's decoder. `tests/against_real_mork.rs` replays each case through the join and
+checks two things: the join never misses a ground answer the matcher produced, and where they
+differ it is only the join finding more.
 
 On the captured corpus, 24 cases: 23 match the live matcher exactly. On the 24th the join
 returns two extra answers, both needing a stored variable to match a compound (data-side
 capture); the naive reference unifier returns them too. That case is the subtle part of the
-matcher semantics, and this fixture does not try to settle it. What the check pins down is the
-direction that matters: the join never misses an answer the matcher produced. A larger random
-version (500 cases) runs in a working branch of the fork, 499 identical, same direction held.
-
-## What the coarse decline costs
-
-The worst-case-optimal join is already fast in the fork. What the routing adds is keeping
-that fast path available when the space holds schematic facts. The cost it removes is
-concrete. The fork's sidecar declines a whole body to the slower ProductZipper the moment any
-joined relation holds a schematic fact (`any_schematic_fact_under_prefixes`). This benchmark
-isolates that cost. The same triangle body and hub-graph
-`(, (edge $x $y) (edge $y $z) (edge $z $x))` run two ways: all facts ground (the join takes
-it), then the same data plus one isolated schematic fact `(edge zzdead (qq $w))` that matches
-no real edge, emits nothing, and exists only to trip the gate. The output is byte-identical
-both ways (the test asserts it) and a counter confirms the path flipped, so the gap is the
-coarse per-relation decline and nothing else.
-
-| n   | join     | declined to ProductZipper | penalty |
-|-----|----------|---------------------------|---------|
-| 100 | 1.83 ms  | 6.45 ms                   | 3.5x    |
-| 200 | 3.31 ms  | 20.9 ms                   | 6.3x    |
-| 400 | 6.27 ms  | 74.6 ms                   | 11.9x   |
-
-The penalty grows with n because the ProductZipper materializes the roughly n^2 two-paths
-while the join intersects instead, so the gap widens as the intermediate blows up. That is the
-AGM bound in wall-clock. One inert schematic fact forfeits all of it. Per-position routing
-recovers it: a schematic fact whose variables never reach a join position stays on the fast
-join. Measured by `bench_decline_penalty_metta` in a working branch of the fork; the
-wholesale decline it isolates is the public fork's behavior today.
+matcher semantics, and this fixture does not try to settle it. What it pins down is the
+direction that matters: the join never misses an answer the matcher produced.
 
 ## How it maps to the fork
 
@@ -96,24 +68,15 @@ wholesale decline it isolates is the public fork's behavior today.
 | `unify.rs` (trail)  | the WAM `unify_value` plus `TrailRollback`                         |
 | `wcojoin.rs`        | `trie_join` / `generic_join`, the leapfrog primitive              |
 | `oracle.rs`         | a naive nested-loop unifier, the reference                        |
-| `join.rs` (routing) | `schematic_facts_safe_to_admit` (working branch), the admission gate |
+| `join.rs` (routing) | the routing condition over the `any_schematic_fact_under_prefixes` decline |
 
-The public fork today has the sidecar (`transform_via_sidecar`) and the all-or-nothing
-schematic decline (`any_schematic_fact_under_prefixes`), the behavior this routing refines. A
-working branch turns that decline into a per-position check (`schematic_facts_safe_to_admit`),
-not yet in the public release. A schematic stored fact stays on the fast join when each of its
-variables sits only on an output-only position, never on a constant (which would need capture)
-and never on a join key (which another factor would ground). Otherwise the body keeps the
-ProductZipper, the same as before. The emit did not change, because it already drops the
-non-ground rows such a fact produces. The check handles nesting on either side: a fact with
-nested structure, and a query factor that decomposes a column.
-
-In that branch the check is sound by an adversarial test: 600 random schematic bodies, nesting
-on both sides, and no admission whose join output differs from the ProductZipper. A benchmark
-shows the payoff: a partial-information fact, a value left unknown, keeps the triangle on the
-worst-case-optimal join instead of declining the whole body, roughly 3x to 10x faster
-(growing with n), with byte-identical output. The `join.rs` here states the same condition
-against materialized relations.
+The fork's sidecar runs a conjunctive body on the worst-case-optimal join, and declines the
+whole body to the ProductZipper the moment any joined relation holds a schematic fact
+(`any_schematic_fact_under_prefixes`). This prototype is the routing that refines that decline
+per position: a schematic fact would stay on the fast join when each of its variables sits
+only on an output-only position, never on a constant (which would need capture) and never on a
+join key (which another factor would ground). It runs against materialized relations here, and
+the condition is computable from the lowered factors at plan time.
 
 ## What this combines
 
@@ -146,9 +109,8 @@ space:  (r $m (a b)) (r c b) (r $n (a)) (r $p $q) (r (b (b)) (a))
 
 The reference is a naive nested-loop unifier, clear and obviously correct, not a model of the
 live matcher. The two paths agree with it on 6000 random cases, and the join is separately
-checked against MORK's actual ProductZipper (see above): 499 of 500 identical, and the join
-never misses. The same routing is implemented in a working branch of the fork, with its own
-adversarial test, not yet in the public release.
+checked against MORK's actual ProductZipper (the fixture above): 23 of 24 identical, and the
+join never misses.
 
 ## Formal verification
 
