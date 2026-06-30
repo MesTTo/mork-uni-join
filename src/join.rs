@@ -3,8 +3,8 @@
 //! The leapfrog triejoin, the COUNT/EXISTS aggregates, and the multi-pattern conjunctive
 //! lowering are already in MesTTo's MORK fork (`da7e8e1` trie-join sidecar, `960c17c`
 //! aggregate kernels, `1cc2d70` streamed intersections, `641e46f` conjunction lowering).
-//! This module is the layer ON TOP that Adam asked for:
-//! integrating that join with unification, by routing on a precise condition.
+//! This module is the layer on top: integrating that join with unification, by routing on
+//! a precise condition.
 //!
 //! THE CONTRIBUTION, stated exactly:
 //!   Unification is free for the worst-case-optimal leapfrog as long as it resolves every

@@ -6,7 +6,7 @@
 //! you get a join that is simultaneously worst-case-optimal and unification-complete,
 //! i.e. it answers conjunctive queries against a space whose facts may themselves
 //! contain variables. That is the case MORK's `SidecarSchematicDecline` proof currently
-//! refuses, and the case Adam's reverted `e551924` was reaching for.
+//! refuses.
 //!
 //! Combines, does not reinvent:
 //!   - relational e-matching (pattern -> conjunctive query -> generic join),

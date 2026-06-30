@@ -1,9 +1,9 @@
-//! Z-order (Morton) space-filling curve: the MORK-native spatial index from the meeting
-//! (the UB-tree idea). Interleave the bits of each coordinate, most-significant first,
-//! into one key, so a multidimensional point becomes a single trie path and a box query
-//! becomes a contiguous range scan. "Good mixing" is the interleaving: one prefix narrows
-//! every dimension at once, which is exactly the `proj_i_c` bisection Adam drew, with the
-//! "big to small" ordering being most-significant-bit first.
+//! Z-order (Morton) space-filling curve: a MORK-native spatial index (the UB-tree idea).
+//! Interleave the bits of each coordinate, most-significant first, into one key, so a
+//! multidimensional point becomes a single trie path and a box query becomes a contiguous
+//! range scan. "Good mixing" is the interleaving: one prefix narrows every dimension at
+//! once, which is exactly the `proj_i_c` per-dimension bisection, with the "big to small"
+//! ordering being most-significant-bit first.
 //!
 //! Orthogonal finite dimensions make the curve factorize, which is what keeps the descent
 //! worst-case-optimal. A box range over-covers on the curve (the curve leaves and re-enters

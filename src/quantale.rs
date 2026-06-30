@@ -1,15 +1,15 @@
-//! The quantale: a bounded lattice plus a cost monoid (improvement #4). This is the
-//! structure the meeting converged on.
+//! The quantale: a bounded lattice plus a cost monoid (improvement #4), the structure the
+//! fuzzy-type design converges on.
 //!
-//! A fuzzy type is a bitset over a small universe of options (Adam's "two bits, four-
-//! valued logic", generalized). The lattice operations are the unification algebra at the
-//! type level:
+//! A fuzzy type is a bitset over a small universe of options (for example two bits, a
+//! four-valued logic, generalized). The lattice operations are the unification algebra at
+//! the type level:
 //!   - meet = bitwise AND = unification = intersection of allowed options,
 //!   - join = bitwise OR  = anti-unification = union of options,
 //!   - top  = all bits set = a variable (matches anything, the meet identity),
 //!   - bottom = no bits     = a contradiction (the join identity).
-//! A type or arity FILTER (Adam's survey features) is just a meet, one more AND, so it
-//! composes with the join's per-variable intersection for free.
+//! A type or arity filter is just a meet, one more AND, so it composes with the join's
+//! per-variable intersection for free.
 //!
 //! A cost (the tropical semiring, or any semiring) rides alongside as the metric. A
 //! bounded lattice with a monoid that distributes over joins is a quantale, and Lawvere's
@@ -96,7 +96,7 @@ mod tests {
     use super::*;
     use crate::semiring::Tropical;
 
-    // The four-option universe Adam's survey points at.
+    // A four-option universe.
     const SYMBOL: u32 = 0;
     const NUMBER: u32 = 1;
     const EXPR: u32 = 2;

@@ -1,7 +1,7 @@
-//! The string / edit-distance fuzzy source. The meeting scoped this as a SEPARATE source:
-//! strings are non-orthogonal (an insert reindexes every later position), so they do not
-//! ride the trie's prefix structure and need their own edit-distance machinery rather than
-//! the lattice/semiring descent.
+//! The string / edit-distance fuzzy source, kept SEPARATE because strings are non-orthogonal
+//! (an insert reindexes every later position), so they do not ride the trie's prefix
+//! structure and need their own edit-distance machinery rather than the lattice/semiring
+//! descent.
 //!
 //! The point of this module is to show that such a source still plugs into the SAME
 //! semiring aggregation as the rest of the prototype: fuzzy-match the keys within an edit

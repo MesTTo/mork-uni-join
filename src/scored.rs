@@ -1,8 +1,8 @@
 //! The exact matcher generalized over a semiring (improvement #1). One matcher; with the
 //! Reach semiring and an exact leaf it is the exact matcher, with Tropical and a distance
 //! leaf it is fuzzy best-cost matching, with Count it counts derivations. The same engine,
-//! parameterized by the cost algebra, which is the meeting's "fuzzy is exact over a
-//! tropical semiring" made executable.
+//! parameterized by the cost algebra, which makes "fuzzy is exact over a tropical semiring"
+//! executable.
 //!
 //! Hard structure (arity) stays exact: a structural mismatch is the annihilator. Only
 //! *leaves* are scored, which is the guardrail from Ben's paper (fuzz the symbol spans,
@@ -191,8 +191,8 @@ mod tests {
 
     #[test]
     fn mixed_crisp_structure_and_fuzzy_number_in_one_pass() {
-        // Adam's mix-and-match: crisp logic (the region symbol must match exactly) AND
-        // fuzzy numeric proximity (the year near a target), in ONE tropical evaluation.
+        // Mix-and-match: crisp logic (the region symbol must match exactly) AND fuzzy
+        // numeric proximity (the year near a target), in ONE tropical evaluation.
         // The crisp symbols cost 0 (or infinity on mismatch); only the number is scored.
         let q = Conj::parse(&["(reading europe $t)", "(around $t)"]);
         let s = space(&[

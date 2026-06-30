@@ -1,6 +1,6 @@
 //! Anti-unification: the least general generalization (Plotkin 1970, Reynolds 1970),
-//! the lattice JOIN dual to unification's meet. This is the "union" Adam kept inserting
-//! into the descent, and the operation WILLIAM uses to form templates.
+//! the lattice JOIN dual to unification's meet. This is the "union" in a fuzzy descent, and
+//! the operation that forms generalization templates.
 //!
 //! `anti_unify(s, t)` is the most specific term that both `s` and `t` are instances of.
 //! Where the two terms agree it keeps the structure; where they disagree it puts a

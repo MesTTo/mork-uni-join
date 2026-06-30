@@ -8,8 +8,8 @@
 //!   Tropical = fuzzy best-cost matching  (+ / min),  None = infinity
 //!   Count    = number of derivations     (* / +)
 //!
-//! Exact matching is just the Reach corner of the same engine, which is the meeting's
-//! whole point: fuzzy is not a separate matcher, it is this matcher over a cost semiring.
+//! Exact matching is just the Reach corner of the same engine: fuzzy is not a separate
+//! matcher, it is this matcher over a cost semiring.
 
 pub trait Semiring: Clone + PartialEq + std::fmt::Debug {
     /// `add`-identity and `mul`-annihilator: "no match / impossible".
