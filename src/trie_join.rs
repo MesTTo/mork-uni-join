@@ -147,17 +147,29 @@ fn read_payload<Z: SubtermZip>(
 /// stored subterm. This is the per-position WAM read-mode / substitution-tree retrieval.
 fn match_subterm<Z: SubtermZip>(d: &mut Descent<Z>, q: &Term, cont: &mut dyn FnMut(&mut Descent<Z>)) {
     match q {
-        // A query variable unifies with whatever stored subterm sits here (ground, compound,
-        // or another data variable). Enumerate them and unify.
+        // A query variable unifies with whatever stored subterm sits here. WAM's read-mode split:
+        // an UNBOUND variable is `unify_variable` (bind it to whatever the data holds, so enumerate
+        // the stored subterms and unify); an already-BOUND variable is `unify_value` (its value is
+        // fixed, so SEEK that structure on the trie instead of scanning every stored subterm and
+        // filtering). The seek prunes the descent to the one matching branch, turning a per-match
+        // O(domain) scan into an O(depth) descent; the answer set is unchanged (a bound variable's
+        // value matches exactly the stored subterms unify would have kept), pinned byte-identical by
+        // the differential against the materialized leapfrog.
         Term::Var(qv) => {
             let qv = *qv;
-            read_one_subterm(d, &mut |d, term| {
-                let m = d.env.mark();
-                if d.env.unify(&Term::Var(qv), term) {
-                    cont(d);
-                }
-                d.env.rollback(m);
-            });
+            let resolved = d.env.resolve(&Term::Var(qv));
+            if let Term::Var(_) = resolved {
+                read_one_subterm(d, &mut |d, term| {
+                    let m = d.env.mark();
+                    if d.env.unify(&Term::Var(qv), term) {
+                        cont(d);
+                    }
+                    d.env.rollback(m);
+                });
+            } else {
+                // Bound: match its resolved value as if the factor named it literally here.
+                match_subterm(d, &resolved, cont);
+            }
         }
         // A structured query (symbol or compound) matches the same structure in the data, OR
         // is captured by a stored wildcard variable.
