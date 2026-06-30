@@ -1,10 +1,12 @@
 # Integrating the worst-case-optimal trie-join with unification
 
-A standalone, differentially-validated prototype of the one open piece in the MORK fork:
+A standalone, differentially-validated prototype of a piece the MORK fork was missing:
 making the worst-case-optimal trie-join answer conjunctive queries against a space whose
 stored facts may themselves carry variables (schematic facts), the case the sidecar
-currently declines (`SidecarSchematicDecline`) and the thing Adam asked to build ("this is
-sound... let's try and integrate this with unification").
+declined wholesale (`SidecarSchematicDecline`) and the thing Adam asked to build ("this is
+sound... let's try and integrate this with unification"). The per-position admission this
+prototype demonstrates is now wired into the fork's sidecar gate (see "How it maps to the
+fork").
 
 The leapfrog triejoin, the COUNT/EXISTS aggregates, the multi-pattern conjunction
 lowering, the WAM trail, and the matcher already exist (the MORK fork's `trie_join` /
@@ -105,12 +107,23 @@ can stay on the fast join. Measured in the fork test `bench_decline_penalty_mett
 | `unify.rs` (trail)   | the WAM `unify_value` + `TrailRollback`                      |
 | `wcojoin.rs`         | `trie_join` / `generic_join` (the leapfrog primitive)        |
 | `oracle.rs`          | a naive nested-loop unification matcher (the reference oracle) |
-| `join.rs` (routing)  | the new bit: a route that would sit at `query_multi`         |
+| `join.rs` (routing)  | `schematic_facts_safe_to_admit`, the per-position sidecar admission gate |
 
-None of this is wired into the fork yet; the prototype is standalone. Wiring it would route
-at `query_multi`: the leapfrog-safe branch to `trie_join`, the coupled branch to the
-existing matcher. The routing test (a non-ground binding at a join position) is computable
-from the lowered pattern factors at plan time.
+The per-position admission this prototype demonstrates is now wired into the fork. It lands
+where the worst-case-optimal sidecar decides whether to take a body: `transform_via_sidecar`'s
+all-or-nothing schematic decline becomes a per-position check. A schematic stored fact stays
+on the fast join when each of its variables sits only on an output-only position (never a
+constant, which would capture, nor a join key, which another factor would ground); otherwise
+the body keeps the ProductZipper, as before. The emit needed no change: it already drops the
+non-ground rows such a fact produces, and the check handles nesting on either side (a fact
+with nested structure, or a query factor that decomposes a column).
+
+Soundness is gated by a random adversarial differential in the fork's test suite: 600 random
+schematic bodies, nesting on both sides, zero admissions whose join output differs from the
+ProductZipper. The payoff, benchmarked: a partial-information schematic fact (an unknown
+value) keeps the triangle on the worst-case-optimal join instead of declining the whole body,
+3.4-8.8x faster with byte-identical output. The standalone `join.rs` here states the same
+condition against materialized relations; the fork wires it into the live sidecar.
 
 ## What this combines (prior art, not reinvented)
 
@@ -142,9 +155,11 @@ space:  (r $m (a b)) (r c b) (r $n (a)) (r $p $q) (r (b (b)) (a))
 ```
 
 The oracle here is a naive nested-loop unifier: a clear, obviously-correct reference, not a
-verified model of the live `coreferential_transition`. So the validated claim is "the two
-paths agree with this reference on 6000 random cases", and validating against MORK's actual
-matcher is the next step before wiring into the fork.
+verified model of the live `coreferential_transition`. The two paths agree with it on 6000
+random cases, and the routed join is separately cross-validated against MORK's actual
+ProductZipper (see "Validated against the real MORK matcher"): 499/500 byte-identical, zero
+misses. The per-position admission is now wired into the fork's sidecar gate (see "How it
+maps to the fork"), gated by its own adversarial differential.
 
 ## Formal verification (planned)
 
