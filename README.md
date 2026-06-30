@@ -35,7 +35,7 @@ admits a schematic fact, case 4 declines one.
 ## Run it
 
 ```
-cargo test            # 51 unit tests plus a zero-fork check against real MORK answers
+cargo test            # 51 unit tests plus a check against real MORK answers
 cargo run --example demo
 ```
 
@@ -44,11 +44,11 @@ facts schematic) and checks that the join's answer set equals a naive nested-loo
 byte for byte on the MORK encoding, on every case. It runs both paths thousands of times with
 no mismatch.
 
-## Checked against the real MORK matcher, no fork checkout
+## Checked against the real MORK matcher
 
-The unit differential checks the join against this crate's own unifier. To check it against
-MORK's actual matcher without building the fork, `tests/mork_fixture.txt` holds answers the
-live ProductZipper produced. Each line is a body, a space, and the ground answers MORK
+The unit differential checks the join against this crate's own unifier. The other check uses
+MORK's actual matcher: `tests/mork_fixture.txt` holds answers the live ProductZipper
+produced. Each line is a body, a space, and the ground answers MORK
 emitted, captured by running `exec` and `metta_calculus` through the real matcher and rendered
 with this crate's decoder. `tests/against_real_mork.rs` replays each case through the join and
 checks two things: the join never misses a ground answer the matcher produced, and where they

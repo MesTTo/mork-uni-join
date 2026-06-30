@@ -1,20 +1,17 @@
-//! Zero-fork validation against the REAL MORK matcher.
+//! Validation against the real MORK matcher.
 //!
 //! The unit tests check the routed join against this crate's own unification oracle. This
 //! integration test goes further: it checks the routed join against the answers MORK's
 //! actual ProductZipper produced, captured as a golden fixture (`mork_fixture.txt`). Each
 //! fixture line is a body, a space, and the ground answers the live matcher emitted, run
-//! through MORK's `exec` + `metta_calculus` in the fork and rendered with this crate's own
-//! decoder. So you can evaluate the whole claim here, with no fork checkout:
+//! through MORK's `exec` + `metta_calculus` and rendered with this crate's own decoder. The
+//! fixture is real matcher output, not a model of it. The test checks:
 //!
 //!   - the routed join never misses a ground answer the real matcher produced
 //!     (`fork ⊆ routed`), the soundness/completeness floor, and
 //!   - where they differ it is only the routed join finding MORE: the data-side variable
-//!     capture case (issue-29) where this join's full unification is the spec-correct one
-//!     and the live matcher currently emits nothing.
-//!
-//! The fixture is real matcher output, not a model of it, so this is the strongest
-//! in-repo evidence short of rebuilding the fork.
+//!     capture case (issue-29), which the naive reference unifier returns too. The fixture
+//!     does not try to settle that case.
 
 use mork_uni_join::join::uni_join;
 use mork_uni_join::oracle::Conj;
@@ -83,7 +80,7 @@ fn routed_join_matches_real_mork_fixture() {
 
     eprintln!("real-MORK fixture: {cases} cases | exact={exact} superset={superset}");
     assert!(cases >= 20, "fixture should cover a representative corpus, got {cases}");
-    // At least the data-side-capture case is a strict superset (the routed join finds the
-    // spec-correct answers the live matcher does not yet emit).
+    // At least the data-side-capture case is a strict superset (the routed join finds extra
+    // answers the live matcher does not, which the naive reference unifier also returns).
     assert!(superset >= 1, "expected the documented data-side-capture superset case");
 }
