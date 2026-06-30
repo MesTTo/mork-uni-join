@@ -1,0 +1,28 @@
+# Golden fixture: REAL MORK ProductZipper answers, captured from the fork
+# (mork-latest-linalg, exec + metta_calculus through the actual matcher) and rendered
+# with this crate's own decoder. Regenerate with the fork's `print_prototype_fixture`.
+# Format per line:  pat | pat ;; fact | fact ;; ans | ans   (empty answer section = no match)
+(e $x $y) | (e $y $z) | (e $x $z) ;; (e a b) | (e a c) | (e b c) | (e b d) ;; (ans a b c)
+(e $x $y) | (e $y $z) ;; (e a b) | (e b c) | (e c d) ;; (ans a b c) | (ans b c d)
+(p $x) | (q $x) ;; (p a) | (q a) | (q b) | (p c) ;; (ans a)
+(e $x $x) ;; (e a a) | (e a b) | (e c c) ;; (ans a) | (ans c)
+(e $x $y) ;; (e a b) | (e b c) ;; (ans a b) | (ans b c)
+(: ($f) A) | (: $f (-> A)) ;; (: (f) A) | (: f (-> A)) ;; (ans f)
+(f (g $x)) ;; (f (g a)) | (f (g b)) | (f h) ;; (ans a) | (ans b)
+(pair $x $y) | (pair $y $x) ;; (pair a b) | (pair b a) | (pair c c) ;; (ans a b) | (ans b a) | (ans c c)
+(rel $x b) ;; (rel a $w) | (rel c b) | (rel d e) ;; (ans a) | (ans c)
+(s $x c) ;; (s a $w) | (s $u c) | (s b c) ;; (ans a) | (ans b)
+(kv k1 $v) | (kv k2 $v) ;; (kv k1 $a) | (kv k2 x) | (kv k1 x) ;; (ans x)
+(r (a $p0) b) | (r (b) $p0) ;; (r $d0 b) | (r $d1 $d1) | (r a b) ;;
+(r $x $y) | (r $y $x) ;; (r a $w) | (r b a) | (r a b) ;; (ans a a) | (ans a b) | (ans b a)
+(t $x $y) ;; (t a b) | (t c d) ;; (ans a b) | (ans c d)
+(k $x) ;; (m a) ;;
+(w $x) | (w (s $x)) ;; (w z) | (w (s z)) | (w (s (s z))) ;; (ans (s z)) | (ans z)
+(c1 $x) | (c2 $x) | (c3 $x) ;; (c1 a) | (c2 a) | (c3 a) | (c1 b) | (c2 b) ;; (ans a)
+(edge $x $y) | (edge $y $z) | (edge $z $x) ;; (edge a b) | (edge b c) | (edge c a) | (edge a c) ;; (ans a b c) | (ans b c a) | (ans c a b)
+(type $f $t) | (val $f $v) ;; (type foo int) | (val foo num) | (type bar str) ;; (ans foo int num)
+(g $x) ;; (g a) | (g $w) | (g b) ;; (ans a) | (ans b)
+(h $x $y) | (h $x $z) ;; (h a b) | (h a c) | (h d e) ;; (ans a b b) | (ans a b c) | (ans a c b) | (ans a c c) | (ans d e e)
+(rel a $x) ;; (rel a (foo b)) | (rel a c) ;; (ans (foo b)) | (ans c)
+(m $x (n $x)) ;; (m a (n a)) | (m b (n c)) | (m d (n d)) ;; (ans a) | (ans d)
+(link $x $y) | (link $y $z) | (link $z $w) ;; (link a b) | (link b c) | (link c d) ;; (ans a b c d)

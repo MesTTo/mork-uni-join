@@ -57,7 +57,11 @@ pub fn answer_key(env: &Env, query_vars: &[u32]) -> Vec<u8> {
 const DATA_VAR_BASE: u32 = 1_000_000;
 const DATA_VAR_STRIDE: u32 = 64; // one fact has at most 64 variables
 
-/// All answers to `q` against `space`, as a set of canonical keys.
+/// All answers to `q` against `space` under full unification, as a set of canonical keys.
+/// This is the complete-matcher reference (the Verus `complete_match` spec): a stored-fact
+/// variable may capture any query subterm, ground or not. Cross-validated against the live
+/// MORK ProductZipper (499/500 byte-identical on the random corpus); the residual is the
+/// data-side-capture gap (issue-29) where this complete matcher is the spec-correct one.
 pub fn naive_match(q: &Conj, space: &[Term]) -> BTreeSet<Vec<u8>> {
     let mut out = BTreeSet::new();
     let mut env = Env::new();

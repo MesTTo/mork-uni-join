@@ -41,33 +41,61 @@ Two consequences that matter:
 ## Run it
 
 ```
-cargo test            # 51 tests: the 6000-case differential oracle, plus the fuzzy layer
+cargo test            # 51 unit tests + a zero-fork check against REAL MORK answers
 cargo run --example demo
 ```
 
-The differential test generates random conjunctive queries over random spaces (about 40%
+The unit differential generates random conjunctive queries over random spaces (about 40%
 of facts schematic) and asserts the join's answer set equals a naive nested-loop
 unification matcher, byte-for-byte on the MORK encoding, on every case. It exercises both
 paths (leapfrog and coupled) thousands of times with zero mismatch.
 
-## Measured (same query, identical output)
+## Validated against the real MORK matcher (zero fork)
 
-On the intermediate-bound hub-graph triangle
-`(, (edge $x $y) (edge $y $z) (edge $z $x))` (n peripheral nodes around 3 hubs: many
-two-paths, few triangles), run once with the factor-at-a-time matcher and once with the
-worst-case-optimal join, identical results both ways:
+The unit differential checks the routed join against *this crate's own* unification oracle.
+To check it against MORK's *actual* matcher without a fork checkout, `tests/mork_fixture.txt`
+holds answers the live ProductZipper produced. Each line is a body, a space, and the ground
+answers MORK emitted, captured by running `exec` + `metta_calculus` through the real matcher
+in the fork and rendered with this crate's own decoder. `tests/against_real_mork.rs` replays
+each case through the routed join and checks two things:
 
-| n   | factor-at-a-time | worst-case-optimal join | speedup |
+- the routed join never misses a ground answer the real matcher produced (`fork ⊆ routed`),
+  the soundness/completeness floor, and
+- where they differ, it is only the routed join finding *more*.
+
+Result on the captured corpus: 24 cases, 23 exact, 1 superset. The one superset is the
+data-side variable capture case (`(r (a $x) b) , (r (b) $x)` against a schematic `(r $d b)`):
+the routed join's full unification returns the two spec-correct answers, while the live
+ProductZipper currently emits nothing there. That is MORK's known data-side-capture gap, not
+a flaw in the join. The fixture is real matcher output, not a model of it, so this is the
+strongest in-repo evidence short of rebuilding the fork. The full 500-case random version of
+this cross-validation lives in the fork's own test suite, run against the live matcher
+directly: 499/500 byte-identical, zero misses.
+
+## Measured: what the coarse decline costs (same body, identical output)
+
+The worst-case-optimal join is already fast in the fork. What this routing adds is keeping
+that fast path available to schematic data. The cost it removes is concrete: the fork's
+sidecar declines a *whole body* to the slower ProductZipper the moment *any* joined relation
+holds a schematic fact (`any_schematic_fact_under_prefixes`). This benchmark isolates that
+cost. The same triangle body and hub-graph
+`(, (edge $x $y) (edge $y $z) (edge $z $x))` run two ways: all facts ground (admitted to the
+WCO join), versus the same data plus *one* isolated schematic fact `(edge zzdead (qq $w))`
+that unifies with no real edge, emits nothing, and exists only to trip the gate. Output is
+byte-identical both ways (asserted), and a decline counter confirms the path actually flips,
+so the gap is purely the coarse per-relation decline:
+
+| n   | admit (WCO join) | decline (ProductZipper) | penalty |
 |-----|------------------|-------------------------|---------|
-| 100 | 6.75 ms          | 1.96 ms                 | 3.4x    |
-| 200 | 21.6 ms          | 3.22 ms                 | 6.7x    |
-| 400 | 76.8 ms          | 7.64 ms                 | 10.0x   |
+| 100 | 1.83 ms          | 6.45 ms                 | 3.5x    |
+| 200 | 3.31 ms          | 20.9 ms                 | 6.3x    |
+| 400 | 6.27 ms          | 74.6 ms                 | 11.9x   |
 
-The speedup grows with n (3.4x -> 6.7x -> 10x): the factor-at-a-time path materializes the
-~n^2 two-paths, the worst-case-optimal join intersects instead, so the gap widens as the
-intermediate blows up. That is the AGM bound in wall-clock. The output is identical on both
-paths, so it is the same answer computed faster. The unification routing above is what lets
-this join answer queries with variables, not only ground tuples.
+The penalty grows with n because the ProductZipper materializes the ~n^2 two-paths while the
+join intersects instead, so the gap widens as the intermediate blows up (the AGM bound in
+wall-clock). One inert schematic fact forfeits all of it. That penalty is exactly what
+per-position routing recovers: a schematic fact whose variables never reach a join position
+can stay on the fast join. Measured in the fork test `bench_decline_penalty_metta`.
 
 ## How it maps to the fork
 
