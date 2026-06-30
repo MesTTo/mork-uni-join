@@ -111,9 +111,9 @@ nested structure, and a query factor that decomposes a column.
 In that branch the check is sound by an adversarial test: 600 random schematic bodies, nesting
 on both sides, and no admission whose join output differs from the ProductZipper. A benchmark
 shows the payoff: a partial-information fact, a value left unknown, keeps the triangle on the
-worst-case-optimal join instead of declining the whole body, 3.4 to 8.8 times faster, with
-byte-identical output. The `join.rs` here states the same condition against materialized
-relations.
+worst-case-optimal join instead of declining the whole body, roughly 3x to 10x faster
+(growing with n), with byte-identical output. The `join.rs` here states the same condition
+against materialized relations.
 
 ## What this combines
 
