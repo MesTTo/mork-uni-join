@@ -232,6 +232,25 @@ All three return the 120 triangles. Against the materialized route the zipper is
 12.9x at s=2048; against the ProductZipper, 293x. The one case left at parity is an acyclic
 output-bound query whose answer is itself s^2, where every join method must enumerate the output.
 
+It is now the default kernel in MORK's unification route, gated by `SIDECAR_ZIPPER_JOIN_ENABLED`, with
+the materialized join as the fallback for a body outside the factor model (a non-leading constant or a
+compound column). A direct kernel A/B over 1500 cyclic bodies, the zipper kernel exercised on 930 of
+them, asserts byte-identical emit to the materialized join; the live ProductZipper differentials, 1500
+broad and 3000 adversarial, still hold with it on; the full kernel suite passes.
+
+End to end through `metta_calculus` the win is smaller than the isolated join's, because the join is a
+fraction of a flip step: the parse, the rewrite, and the emit are shared. On the hub-blowup cycle the
+route is at parity at 64 edges and 2.1x at 2048, the gap widening with the relation:
+
+```
+  s     materialized-route   zipper-route   speedup
+   64          598 us             619 us       0.97x
+ 1024         9.73 ms            6.02 ms        1.62x
+ 2048         21.0 ms            10.1 ms        2.09x
+```
+
+The join numbers earlier are the algorithm's merit; this is the deployed benefit.
+
 ## What it extends
 
 MORK's worst-case-optimal join (`generic_join`, `trie_join` in the fork) intersects by exact key
