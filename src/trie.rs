@@ -121,11 +121,12 @@ impl ByteTrie {
 /// of the PathMap `ReadZipper` API the join uses.
 pub struct TrieZipper<'a> {
     stack: Vec<&'a ByteTrie>,
+    path: Vec<u8>,
 }
 
 impl<'a> TrieZipper<'a> {
     pub fn new(root: &'a ByteTrie) -> TrieZipper<'a> {
-        TrieZipper { stack: vec![root] }
+        TrieZipper { stack: vec![root], path: Vec::new() }
     }
 
     fn node(&self) -> &'a ByteTrie {
@@ -146,6 +147,7 @@ impl<'a> TrieZipper<'a> {
         match self.node().children.get(&b) {
             Some(child) => {
                 self.stack.push(child);
+                self.path.push(b);
                 true
             }
             None => false,
@@ -154,10 +156,51 @@ impl<'a> TrieZipper<'a> {
 
     pub fn ascend_byte(&mut self) {
         self.stack.pop();
+        self.path.pop();
     }
 
     pub fn depth(&self) -> usize {
         self.stack.len() - 1
+    }
+}
+
+/// The minimal zipper interface the capture-join in `trie_join` descends over: the present
+/// child bytes, a guarded descend, an ascend, and a reset to the root each factor restarts
+/// from. `TrieZipper` implements it here for the prototype's tests; the kernel implements the
+/// same four methods for a PathMap `ReadZipper`, so the join runs unchanged over the live
+/// byte-trie with no copy.
+pub trait SubtermZip {
+    fn child_mask_words(&self) -> [u64; 4];
+    /// Descend to child `b` if present, returning whether it moved.
+    fn descend_byte(&mut self, b: u8) -> bool;
+    fn ascend(&mut self);
+    /// Snapshot the focus path so a deeper factor can restart at the root and this one can be
+    /// restored afterwards (the cursor is shared across factors, unlike a fresh-per-factor one).
+    fn save_path(&self) -> Vec<u8>;
+    /// Return to the root and descend `path`; `restore_path(&[])` is "reset to root".
+    fn restore_path(&mut self, path: &[u8]);
+}
+
+impl SubtermZip for TrieZipper<'_> {
+    fn child_mask_words(&self) -> [u64; 4] {
+        self.child_mask().0
+    }
+    fn descend_byte(&mut self, b: u8) -> bool {
+        self.descend_to_byte(b)
+    }
+    fn ascend(&mut self) {
+        self.ascend_byte();
+    }
+    fn save_path(&self) -> Vec<u8> {
+        self.path.clone()
+    }
+    fn restore_path(&mut self, path: &[u8]) {
+        while self.depth() > 0 {
+            self.ascend_byte();
+        }
+        for &b in path {
+            self.descend_to_byte(b);
+        }
     }
 }
 
