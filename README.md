@@ -151,13 +151,72 @@ The route reads its facts through the PathMap index, descending to each relation
 snapshot the ProductZipper reads, not by scanning the whole space. Flooding the space with unrelated
 facts leaves the route's time flat where a full scan climbed with the space size, so its cost tracks
 the joined relations. It still materializes those relation facts into the join's tries; streaming the
-join straight off the PathMap zipper is the remaining zero-copy step.
+join straight off the PathMap zipper, with no decode at all, is the next step, and the section below
+builds it.
 
 The route is on by default; `MORK_UNIFY_ROUTE=0` forces the ProductZipper for an A/B run. Its scope is
 exactly the cyclic-join-over-schematic-data case: it fires only on a cyclic body with a schematic fact
 under a join prefix. A two-factor linear join like process_calculus's petri rule never reaches the
 cyclic path, so it neither declines nor routes and is byte-identical either way; ground cyclic benches
 (clique, transitive) carry no schematic facts, so they never trip the gate.
+
+## Streaming the join off the zipper
+
+The route above still decodes the joined relations into the join's tries. This closes that step: a
+worst-case-optimal unification join that seeks the PathMap byte-trie directly, with no materialized
+domain, over MORK's variable-width terms. It lives in the fork at `kernel/src/zipper_join.rs`.
+
+The primitive is a subterm cursor. MORK's encoding is prefix-free: an arity byte owes a fixed number
+of subterms, a symbol-size byte owes its payload bytes, a variable is one byte. So a complete subterm
+is self-delimiting and the trie's branches fall on subterm boundaries. The cursor enumerates and seeks
+complete subterms branching from a zipper focus, the backtracking trie lower bound built from
+`child_mask` and `descend_to_byte`. That variable-width seek is what the fixed-width zipper-join
+prototypes could not express.
+
+The intersection is a trail union-find, not a structural unifier. In the routed scope, the same
+no-non-ground-compound gate the live route uses, every join key is a ground byte-slice or a variable,
+so unification degenerates: a ground subterm is an opaque value compared by equality, a variable
+unifies with anything, and nothing recurses into compound structure. `proofs/ZipperUnifySafe.thy`
+machine-checks that degeneracy. On flat terms, a variable or a fully ground term, structural
+unifiability equals the union-find decision (`flat_unifiable_iff_uf_agree`); it lifts to the join
+intersection (`zipper_uf_join_eq_unification_join`); and a non-ground compound is the witness that
+breaks it, which is the gate's boundary (`nonflat_uf_unsound`). Builds clean, no `sorry`.
+
+The join is checked byte-identical to the real ProductZipper: five hand cases (compatible and cyclic
+triangles, a schematic edge at the join, a coreferent schematic fact, a shared-key conjunction) and
+250 random cases over six shapes, each run through MORK's matcher and through the join and asserted to
+return the same ground answers.
+
+The point of not materializing is that the cost tracks the answer, not the space. On a selective
+two-path `(e a $y)(e $y $z)` from a fixed start, as the relation `e` fills with edges unreachable from
+`a`, the join and the ProductZipper return the same 25 answers, but the ProductZipper's cost climbs
+with the relation while the join stays flat:
+
+```
+  junk     ProductZipper     zipper     speedup
+     0          9.1 us         4.7 us       1.9x
+  1024         24.9 us         5.0 us       5.0x
+ 16384         49.8 us         4.8 us      10.3x
+ 65536          182 us         4.9 us      37.4x
+```
+
+Against the materialized unification join, the one that does decode the relation into tries, the same
+query shows the cost of materializing:
+
+```
+  junk      materialized     zipper     speedup
+     0          21.7 us        4.8 us       4.5x
+  1024          1.11 ms        5.0 us        222x
+ 16384           122 ms        5.0 us      24337x
+ 65536          2.72 s         5.0 us     542048x
+```
+
+The lead among the join's factors is chosen by a bounded subterm count, so a selective factor drives
+the join and the rest seek. The honest scope is the compatible-order case, acyclic or otherwise
+orderable, and selective queries. A cyclic query, the triangle the live route handles, is the
+exception: worst-case-optimality on a cycle needs the inverted factor re-indexed into another
+attribute order, and re-indexing is materialization, so the cyclic case cannot be zero-copy and the
+materialized route stays the right tool there.
 
 ## What it extends
 
@@ -168,7 +227,13 @@ declines.
 
 The pieces are prior art; the combination is the new part. Worst-case-optimal joins come from
 Leapfrog Triejoin (Veldhuizen, ICDT 2014), generic join (Ngo, Porat, Re, Rudra, PODS 2012), and
-the AGM bound (Atserias, Grohe, Marx, FOCS 2008). Relational e-matching (Zhang, Wang, Willsey,
+the AGM bound (Atserias, Grohe, Marx, FOCS 2008). The byte-level form, intersecting on the trie of
+the key encoding rather than an interned-integer domain, is radix triejoin (Fekete, Franks, Jordan,
+Scholz, 2019); the new part in `zipper_join.rs` is running it over MORK's variable-width prefix-free
+terms with no interning and with the intersection promoted to unification. Variable-length keys are
+the known hard case for these joins (Freitag, Bandle, Schmidt, Kemper, Neumann, VLDB 2020), usually
+met with hash tries; MORK's prefix-free encoding makes the subterm boundaries self-delimiting, so the
+byte-trie reads them directly with a parse stack. Relational e-matching (Zhang, Wang, Willsey,
 Tatlock, POPL 2022) makes generic join worst-case-optimal for matching but assumes ground e-class
 ids; the non-ground data case is what it leaves out and what this handles. The unification side is
 older still: substitution-tree indexing (Graf 1995, 1996; Ramakrishnan, Sekar, Voronkov, Handbook
