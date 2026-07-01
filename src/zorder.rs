@@ -15,7 +15,10 @@ use std::collections::BTreeMap;
 /// Interleave `coords` (each `bits` wide), MSB first, into a Morton code. `dims * bits`
 /// must be <= 128.
 pub fn morton_encode(coords: &[u32], bits: u32) -> u128 {
-    assert!(coords.len() as u32 * bits <= 128, "morton code wider than 128 bits");
+    assert!(
+        coords.len() as u32 * bits <= 128,
+        "morton code wider than 128 bits"
+    );
     let mut code: u128 = 0;
     for b in (0..bits).rev() {
         for &c in coords {
@@ -69,7 +72,10 @@ impl ZIndex {
     }
 
     fn in_box(p: &[u32], lo: &[u32], hi: &[u32]) -> bool {
-        p.iter().zip(lo).zip(hi).all(|((&v, &l), &h)| l <= v && v <= h)
+        p.iter()
+            .zip(lo)
+            .zip(hi)
+            .all(|((&v, &l), &h)| l <= v && v <= h)
     }
 
     /// All points inside the box `[lo, hi]` (inclusive per dimension), found by scanning
@@ -171,7 +177,10 @@ mod tests {
                     .cloned()
                     .collect();
                 want.sort();
-                assert_eq!(got, want, "Z-order range != brute force for box {lo:?}..{hi:?}");
+                assert_eq!(
+                    got, want,
+                    "Z-order range != brute force for box {lo:?}..{hi:?}"
+                );
             }
         }
     }

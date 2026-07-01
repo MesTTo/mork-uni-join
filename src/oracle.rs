@@ -145,9 +145,7 @@ mod tests {
         let s = space(&["(e a b)", "(e a c)", "(e b c)", "(e b d)"]);
         let ans = naive_match(&q, &s);
         assert_eq!(ans.len(), 1, "only (a,b,c)");
-        assert!(ans.contains(
-            &Term::App(vec![parse("a"), parse("b"), parse("c")]).encode()
-        ));
+        assert!(ans.contains(&Term::App(vec![parse("a"), parse("b"), parse("c")]).encode()));
     }
 
     #[test]

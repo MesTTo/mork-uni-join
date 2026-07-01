@@ -43,8 +43,7 @@ fn answers_canonical(q: &Conj, space: &[Term], canonical_order: &[u32]) -> BTree
             Term::App(a) => a,
             t => vec![t],
         };
-        let map: HashMap<u32, Term> =
-            q.query_vars.iter().copied().zip(tuple).collect();
+        let map: HashMap<u32, Term> = q.query_vars.iter().copied().zip(tuple).collect();
         let recanon = Term::App(canonical_order.iter().map(|v| map[v].clone()).collect());
         out.insert(recanon.encode());
     }
@@ -65,35 +64,53 @@ fn join_answer_set_is_order_independent() {
         let space: Vec<Term> = case.facts.iter().map(|f| term::parse(f)).collect();
 
         // Reference: original pattern order, canonical elimination order.
-        let parse_in =
-            |order: &[usize], sc: &HashMap<String, u32>| -> Vec<Term> {
-                let mut sc = sc.clone();
-                order.iter().map(|&i| term::parse_with_scope(case.patterns[i], &mut sc)).collect()
-            };
+        let parse_in = |order: &[usize], sc: &HashMap<String, u32>| -> Vec<Term> {
+            let mut sc = sc.clone();
+            order
+                .iter()
+                .map(|&i| term::parse_with_scope(case.patterns[i], &mut sc))
+                .collect()
+        };
         let identity: Vec<usize> = (0..case.patterns.len()).collect();
         let reference = answers_canonical(
-            &Conj { patterns: parse_in(&identity, &scope), query_vars: canonical.clone() },
+            &Conj {
+                patterns: parse_in(&identity, &scope),
+                query_vars: canonical.clone(),
+            },
             &space,
             &canonical,
         );
 
         // A. factor-order independence: permute the patterns.
         for perm in perms(&identity) {
-            let q = Conj { patterns: parse_in(&perm, &scope), query_vars: canonical.clone() };
+            let q = Conj {
+                patterns: parse_in(&perm, &scope),
+                query_vars: canonical.clone(),
+            };
             let got = answers_canonical(&q, &space, &canonical);
             assert_eq!(
-                got, reference,
+                got,
+                reference,
                 "case {:?}: factor order {:?} changed the answer set\n  +{:?}\n  -{:?}",
-                case.name, perm,
-                got.difference(&reference).map(|k| Term::decode(k).to_string()).collect::<Vec<_>>(),
-                reference.difference(&got).map(|k| Term::decode(k).to_string()).collect::<Vec<_>>(),
+                case.name,
+                perm,
+                got.difference(&reference)
+                    .map(|k| Term::decode(k).to_string())
+                    .collect::<Vec<_>>(),
+                reference
+                    .difference(&got)
+                    .map(|k| Term::decode(k).to_string())
+                    .collect::<Vec<_>>(),
             );
         }
 
         // B. elimination-order independence: permute query_vars (the plan).
         let patterns_fixed = parse_in(&identity, &scope);
         for vperm in perms(&canonical) {
-            let q = Conj { patterns: patterns_fixed.clone(), query_vars: vperm.clone() };
+            let q = Conj {
+                patterns: patterns_fixed.clone(),
+                query_vars: vperm.clone(),
+            };
             let got = answers_canonical(&q, &space, &canonical);
             assert_eq!(
                 got, reference,

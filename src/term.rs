@@ -352,7 +352,10 @@ mod tests {
     fn rename_apart_shifts_ids_only() {
         let p = parse("(f $x $x)"); // Var(0) twice
         let q = p.rename_apart(10);
-        assert_eq!(q, Term::App(vec![Term::sym("f"), Term::Var(10), Term::Var(10)]));
+        assert_eq!(
+            q,
+            Term::App(vec![Term::sym("f"), Term::Var(10), Term::Var(10)])
+        );
         // Encoding is unaffected by the shift (De Bruijn normalizes it away).
         assert_eq!(p.encode(), q.encode());
     }

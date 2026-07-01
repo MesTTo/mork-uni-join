@@ -49,7 +49,13 @@ pub fn uni_join(q: &Conj, space: &[Term]) -> (BTreeSet<Vec<u8>>, Stats) {
         .query_vars
         .iter()
         .copied()
-        .filter(|v| q.patterns.iter().filter(|p| p.var_ids().contains(v)).count() >= 2)
+        .filter(|v| {
+            q.patterns
+                .iter()
+                .filter(|p| p.var_ids().contains(v))
+                .count()
+                >= 2
+        })
         .collect();
 
     // Materialize each pattern's relation by matching it against the space. While doing so,
@@ -233,7 +239,11 @@ mod tests {
             }
         } else {
             let arity = 1 + rng.below(2);
-            Term::App((0..arity).map(|_| gen_term(rng, depth - 1, allow_var, var_pool)).collect())
+            Term::App(
+                (0..arity)
+                    .map(|_| gen_term(rng, depth - 1, allow_var, var_pool))
+                    .collect(),
+            )
         }
     }
 
@@ -266,7 +276,10 @@ mod tests {
                 }
                 v
             };
-            let q = Conj { patterns, query_vars };
+            let q = Conj {
+                patterns,
+                query_vars,
+            };
 
             let nfacts = rng.below(6);
             let sp: Vec<Term> = (0..nfacts)
@@ -283,7 +296,8 @@ mod tests {
             let (got, stats) = uni_join(&q, &sp);
             let want = naive_match(&q, &sp);
             assert_eq!(
-                got, want,
+                got,
+                want,
                 "MISMATCH ({:?})\n  query_vars={:?}\n  patterns={:?}\n  space={:?}",
                 stats.path,
                 q.query_vars,

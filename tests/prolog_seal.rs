@@ -31,8 +31,10 @@ fn proto_join_sealed_against_swipl_occurs_check() {
         let space: Vec<Term> = case.facts.iter().map(|f| term::parse(f)).collect();
 
         // Proto: full-unification answer set, each key already alpha-canonical.
-        let proto: BTreeSet<String> =
-            leapfrog_unify_join(&q, &space).iter().map(|k| prolog::canon(&Term::decode(k))).collect();
+        let proto: BTreeSet<String> = leapfrog_unify_join(&q, &space)
+            .iter()
+            .map(|k| prolog::canon(&Term::decode(k)))
+            .collect();
 
         // Prolog: independent occurs-checked resolution over the same structure.
         let program = prolog::program(&q, &space);
@@ -67,7 +69,17 @@ fn proto_join_sealed_against_swipl_occurs_check() {
     );
     // Guard against a vacuous pass: the corpus must produce answers, and some must be non-ground
     // (capture / coreference), or it is not exercising unification.
-    assert!(total_answers >= corpus::cases().len(), "corpus produced too few answers to be meaningful");
-    assert!(nonground_cases >= 3, "corpus has too few non-ground (capture) answer sets");
-    assert!(failures.is_empty(), "proto != SWI-Prolog occurs-check:\n{}", failures.join("\n"));
+    assert!(
+        total_answers >= corpus::cases().len(),
+        "corpus produced too few answers to be meaningful"
+    );
+    assert!(
+        nonground_cases >= 3,
+        "corpus has too few non-ground (capture) answer sets"
+    );
+    assert!(
+        failures.is_empty(),
+        "proto != SWI-Prolog occurs-check:\n{}",
+        failures.join("\n")
+    );
 }

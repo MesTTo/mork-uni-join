@@ -15,7 +15,7 @@
 
 use mork_uni_join::join::uni_join;
 use mork_uni_join::oracle::Conj;
-use mork_uni_join::term::{Term, parse};
+use mork_uni_join::term::{parse, Term};
 use std::collections::BTreeSet;
 
 /// The routed join's ground answers for a case, rendered as `(ans ...)` so they line up
@@ -42,7 +42,11 @@ fn routed_join_answers(patterns: &[&str], facts: &[&str]) -> BTreeSet<String> {
 }
 
 fn items(section: &str) -> Vec<&str> {
-    section.split('|').map(|s| s.trim()).filter(|s| !s.is_empty()).collect()
+    section
+        .split('|')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect()
 }
 
 #[test]
@@ -79,8 +83,14 @@ fn routed_join_matches_real_mork_fixture() {
     }
 
     eprintln!("real-MORK fixture: {cases} cases | exact={exact} superset={superset}");
-    assert!(cases >= 20, "fixture should cover a representative corpus, got {cases}");
+    assert!(
+        cases >= 20,
+        "fixture should cover a representative corpus, got {cases}"
+    );
     // At least the data-side-capture case is a strict superset (the routed join finds extra
     // answers the live matcher does not, which the naive reference unifier also returns).
-    assert!(superset >= 1, "expected the documented data-side-capture superset case");
+    assert!(
+        superset >= 1,
+        "expected the documented data-side-capture superset case"
+    );
 }

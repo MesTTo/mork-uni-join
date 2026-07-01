@@ -24,17 +24,15 @@ pub fn anti_unify(a: &Term, b: &Term) -> Term {
     lgg(a, b, &mut subs, &mut next)
 }
 
-fn lgg(
-    a: &Term,
-    b: &Term,
-    subs: &mut HashMap<(Vec<u8>, Vec<u8>), u32>,
-    next: &mut u32,
-) -> Term {
+fn lgg(a: &Term, b: &Term, subs: &mut HashMap<(Vec<u8>, Vec<u8>), u32>, next: &mut u32) -> Term {
     match (a, b) {
         (Term::Sym(x), Term::Sym(y)) if x == y => Term::Sym(x.clone()),
-        (Term::App(xs), Term::App(ys)) if xs.len() == ys.len() => {
-            Term::App(xs.iter().zip(ys).map(|(x, y)| lgg(x, y, subs, next)).collect())
-        }
+        (Term::App(xs), Term::App(ys)) if xs.len() == ys.len() => Term::App(
+            xs.iter()
+                .zip(ys)
+                .map(|(x, y)| lgg(x, y, subs, next))
+                .collect(),
+        ),
         // A disagreement (different symbols, different arity, or a variable on a side):
         // a fresh variable, but the same one for the same disagreement pair.
         _ => {
@@ -62,22 +60,40 @@ mod tests {
     #[test]
     fn shared_disagreement_shares_a_variable() {
         // (f a a) and (f b b) generalize to (f $x $x), not (f $x $y).
-        assert_eq!(au("(f a a)", "(f b b)").encode(), parse("(f $x $x)").encode());
+        assert_eq!(
+            au("(f a a)", "(f b b)").encode(),
+            parse("(f $x $x)").encode()
+        );
         // distinct disagreements get distinct variables.
-        assert_eq!(au("(f a c)", "(f b d)").encode(), parse("(f $x $y)").encode());
+        assert_eq!(
+            au("(f a c)", "(f b d)").encode(),
+            parse("(f $x $y)").encode()
+        );
     }
 
     #[test]
     fn keeps_the_common_part() {
-        assert_eq!(au("(f a b)", "(f a c)").encode(), parse("(f a $x)").encode());
-        assert_eq!(au("(f a b)", "(f c b)").encode(), parse("(f $x b)").encode());
-        assert_eq!(au("(g (h a) b)", "(g (h a) c)").encode(), parse("(g (h a) $x)").encode());
+        assert_eq!(
+            au("(f a b)", "(f a c)").encode(),
+            parse("(f a $x)").encode()
+        );
+        assert_eq!(
+            au("(f a b)", "(f c b)").encode(),
+            parse("(f $x b)").encode()
+        );
+        assert_eq!(
+            au("(g (h a) b)", "(g (h a) c)").encode(),
+            parse("(g (h a) $x)").encode()
+        );
     }
 
     #[test]
     fn idempotent_and_top() {
         // lgg(a, a) = a.
-        assert_eq!(au("(f a (g b))", "(f a (g b))").encode(), parse("(f a (g b))").encode());
+        assert_eq!(
+            au("(f a (g b))", "(f a (g b))").encode(),
+            parse("(f a (g b))").encode()
+        );
         // Same arity, different head: the structure is kept with a variable in the head.
         assert_eq!(au("(f a)", "(g a)").encode(), parse("($h a)").encode());
         // Incompatible shapes (symbol vs expression, or different arity) generalize to a

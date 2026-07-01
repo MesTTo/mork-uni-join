@@ -111,7 +111,13 @@ static CASES: &[Case] = &[
     Case {
         name: "schematic at join position, nested",
         patterns: &["(r (($x $x) b) a)", "(r $y $x)"],
-        facts: &["(r $m (a b))", "(r c b)", "(r $n (a))", "(r $p $q)", "(r (b (b)) (a))"],
+        facts: &[
+            "(r $m (a b))",
+            "(r c b)",
+            "(r $n (a))",
+            "(r $p $q)",
+            "(r (b (b)) (a))",
+        ],
         proj: &["x", "y"],
     },
     // --- E. ground controls (must agree too) ---

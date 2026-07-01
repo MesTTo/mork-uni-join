@@ -66,7 +66,11 @@ fn to_prolog(t: &Term, name: &dyn Fn(u32) -> String, out: &mut String) {
 pub fn program(q: &Conj, space: &[Term]) -> String {
     // Query vars render as `_Q0.._Qn` in first-occurrence order (the proto's answer-tuple order).
     let qpos = |id: u32| -> String {
-        let k = q.query_vars.iter().position(|&v| v == id).expect("query var");
+        let k = q
+            .query_vars
+            .iter()
+            .position(|&v| v == id)
+            .expect("query var");
         format!("_Q{k}")
     };
 

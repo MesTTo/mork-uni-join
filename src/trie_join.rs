@@ -73,7 +73,10 @@ fn child_bytes<Z: SubtermZip>(z: &Z) -> Vec<u8> {
 /// use the fact's stored-variable slots (a `NewVar` allocates a fresh id, a `VarRef` reads an
 /// earlier one), so coreference inside the fact is preserved. `cont` runs once per subterm
 /// with `d.z` advanced past it; the trie and slots are restored on return.
-fn read_one_subterm<Z: SubtermZip>(d: &mut Descent<Z>, cont: &mut dyn FnMut(&mut Descent<Z>, &Term)) {
+fn read_one_subterm<Z: SubtermZip>(
+    d: &mut Descent<Z>,
+    cont: &mut dyn FnMut(&mut Descent<Z>, &Term),
+) {
     for b in child_bytes(&d.z) {
         d.z.descend_byte(b);
         match b & TOP2 {
@@ -149,7 +152,11 @@ fn read_payload<Z: SubtermZip>(
 /// Match query subterm `q` against one stored subterm at `d.z`, threading the shared
 /// substitution; `cont` runs for every way it unifies, with `d.z` advanced past the matched
 /// stored subterm. This is the per-position WAM read-mode / substitution-tree retrieval.
-fn match_subterm<Z: SubtermZip>(d: &mut Descent<Z>, q: &Term, cont: &mut dyn FnMut(&mut Descent<Z>)) {
+fn match_subterm<Z: SubtermZip>(
+    d: &mut Descent<Z>,
+    q: &Term,
+    cont: &mut dyn FnMut(&mut Descent<Z>),
+) {
     match q {
         // A query variable unifies with whatever stored subterm sits here. WAM's read-mode split:
         // an UNBOUND variable is `unify_variable` (bind it to whatever the data holds, so enumerate
@@ -249,7 +256,12 @@ fn descend_exact<Z: SubtermZip>(z: &mut Z, bytes: &[u8]) -> bool {
 }
 
 /// Match `args[i..]` against successive stored subterms at `d.z`, then call `cont`.
-fn match_seq<Z: SubtermZip>(d: &mut Descent<Z>, args: &[Term], i: usize, cont: &mut dyn FnMut(&mut Descent<Z>)) {
+fn match_seq<Z: SubtermZip>(
+    d: &mut Descent<Z>,
+    args: &[Term],
+    i: usize,
+    cont: &mut dyn FnMut(&mut Descent<Z>),
+) {
     if i == args.len() {
         cont(d);
         return;
@@ -344,12 +356,18 @@ mod tests {
         let sp = space(facts);
         let got = trie_unify_join(&q, &sp);
         let want = leapfrog_unify_join(&q, &sp);
-        assert_eq!(got, want, "trie_unify_join != leapfrog for {pats:?} over {facts:?}");
+        assert_eq!(
+            got, want,
+            "trie_unify_join != leapfrog for {pats:?} over {facts:?}"
+        );
     }
 
     #[test]
     fn ground_path() {
-        agree(&["(edge $x $y)", "(edge $y $z)"], &["(edge a b)", "(edge b d)", "(edge a c)", "(edge c d)"]);
+        agree(
+            &["(edge $x $y)", "(edge $y $z)"],
+            &["(edge a b)", "(edge b d)", "(edge a c)", "(edge c d)"],
+        );
     }
 
     #[test]
@@ -364,7 +382,10 @@ mod tests {
 
     #[test]
     fn coreferent_fact() {
-        agree(&["(e $x $y)", "(e $y $z)"], &["(e $u $u)", "(e a b)", "(e b c)"]);
+        agree(
+            &["(e $x $y)", "(e $y $z)"],
+            &["(e $u $u)", "(e a b)", "(e b c)"],
+        );
     }
 
     #[test]
@@ -401,6 +422,9 @@ mod tests {
                 differ += 1;
             }
         }
-        assert!(differ >= 3, "the corpus must contain cases where capture adds answers: {differ}");
+        assert!(
+            differ >= 3,
+            "the corpus must contain cases where capture adds answers: {differ}"
+        );
     }
 }

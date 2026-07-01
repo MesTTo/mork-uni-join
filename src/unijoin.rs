@@ -44,7 +44,10 @@ struct Node {
 
 impl Node {
     fn leaf() -> Node {
-        Node { children: Vec::new(), n_ground: 0 }
+        Node {
+            children: Vec::new(),
+            n_ground: 0,
+        }
     }
 }
 
@@ -62,7 +65,11 @@ fn insert(node: &mut Node, vals: &[Term]) {
     let idx = match node.children.iter().position(|c| &c.val == head) {
         Some(i) => i,
         None => {
-            node.children.push(Child { key: head.encode(), val: head.clone(), sub: Node::leaf() });
+            node.children.push(Child {
+                key: head.encode(),
+                val: head.clone(),
+                sub: Node::leaf(),
+            });
             node.children.len() - 1
         }
     };
@@ -75,11 +82,12 @@ fn finalize(node: &mut Node) {
     for c in &mut node.children {
         finalize(&mut c.sub);
     }
-    node.children.sort_by(|a, b| match (a.val.is_ground(), b.val.is_ground()) {
-        (true, false) => Ordering::Less,
-        (false, true) => Ordering::Greater,
-        _ => a.key.cmp(&b.key),
-    });
+    node.children
+        .sort_by(|a, b| match (a.val.is_ground(), b.val.is_ground()) {
+            (true, false) => Ordering::Less,
+            (false, true) => Ordering::Greater,
+            _ => a.key.cmp(&b.key),
+        });
     node.n_ground = node.children.iter().filter(|c| c.val.is_ground()).count();
 }
 
@@ -155,13 +163,25 @@ pub fn leapfrog_unify_join(q: &Conj, space: &[Term]) -> BTreeSet<Vec<u8>> {
         None => return BTreeSet::new(),
     };
     let order = &q.query_vars;
-    let tries: Vec<Trie> = rels.iter().map(|(vars, tuples)| build(vars, tuples, order)).collect();
+    let tries: Vec<Trie> = rels
+        .iter()
+        .map(|(vars, tuples)| build(vars, tuples, order))
+        .collect();
 
     let mut out = BTreeSet::new();
     let mut cursors: Vec<&Node> = tries.iter().map(|t| &t.root).collect();
     let mut depths = vec![0usize; tries.len()];
     let mut env = Env::new();
-    descend(order, 0, &q.query_vars, &tries, &mut cursors, &mut depths, &mut env, &mut out);
+    descend(
+        order,
+        0,
+        &q.query_vars,
+        &tries,
+        &mut cursors,
+        &mut depths,
+        &mut env,
+        &mut out,
+    );
     out
 }
 
@@ -190,7 +210,9 @@ fn descend<'a>(
     }
     // Lead with the smallest domain (the leapfrog principle); the rest are seeked.
     parts.sort_by_key(|&i| cursors[i].children.len());
-    intersect(order, k, &parts, 0, v, query_vars, tries, cursors, depths, env, out);
+    intersect(
+        order, k, &parts, 0, v, query_vars, tries, cursors, depths, env, out,
+    );
 }
 
 /// Intersect variable `v` across the participating relations under unification. The lead (the
@@ -224,7 +246,19 @@ fn intersect<'a>(
         if env.unify(&Term::Var(v), &child.val) {
             cursors[i] = &child.sub;
             depths[i] = saved_depth + 1;
-            intersect(order, k, parts, pi + 1, v, query_vars, tries, cursors, depths, env, out);
+            intersect(
+                order,
+                k,
+                parts,
+                pi + 1,
+                v,
+                query_vars,
+                tries,
+                cursors,
+                depths,
+                env,
+                out,
+            );
         }
         cursors[i] = saved_cursor;
         depths[i] = saved_depth;
@@ -248,7 +282,10 @@ mod tests {
         let s = space(facts);
         let got = leapfrog_unify_join(&q, &s);
         let want = naive_match(&q, &s);
-        assert_eq!(got, want, "leapfrog-unify != oracle for {pats:?} over {facts:?}");
+        assert_eq!(
+            got, want,
+            "leapfrog-unify != oracle for {pats:?} over {facts:?}"
+        );
     }
 
     #[test]
@@ -266,14 +303,23 @@ mod tests {
 
     #[test]
     fn func_type_unification() {
-        agree(&["(: ($f) A)", "(: $f (-> A))"], &["(: (f) A)", "(: f (-> A))"]);
+        agree(
+            &["(: ($f) A)", "(: $f (-> A))"],
+            &["(: (f) A)", "(: f (-> A))"],
+        );
     }
 
     #[test]
     fn schematic_at_join_position() {
         agree(
             &["(r (($x $x) b) a)", "(r $y $x)"],
-            &["(r $m (a b))", "(r c b)", "(r $n (a))", "(r $p $q)", "(r (b (b)) (a))"],
+            &[
+                "(r $m (a b))",
+                "(r c b)",
+                "(r $n (a))",
+                "(r $p $q)",
+                "(r (b (b)) (a))",
+            ],
         );
     }
 
@@ -287,14 +333,20 @@ mod tests {
 
     #[test]
     fn coreferent_schematic_fact() {
-        agree(&["(e $x $y)", "(e $y $z)"], &["(e $u $u)", "(e a b)", "(e b c)"]);
+        agree(
+            &["(e $x $y)", "(e $y $z)"],
+            &["(e $u $u)", "(e a b)", "(e b c)"],
+        );
     }
 
     #[test]
     fn ground_and_wildcard_at_same_position() {
         // A relation holding both a ground and a schematic fact at the same join position, so a
         // seeked ground value matches both the ground child and the wildcard child.
-        agree(&["(p $x)", "(q $x)"], &["(p a)", "(p b)", "(q a)", "(q $w)"]);
+        agree(
+            &["(p $x)", "(q $x)"],
+            &["(p a)", "(p b)", "(q a)", "(q $w)"],
+        );
     }
 
     #[test]
@@ -333,7 +385,11 @@ mod tests {
             }
         } else {
             let arity = 1 + rng.below(2);
-            Term::App((0..arity).map(|_| gen_term(rng, depth - 1, allow_var, var_pool)).collect())
+            Term::App(
+                (0..arity)
+                    .map(|_| gen_term(rng, depth - 1, allow_var, var_pool))
+                    .collect(),
+            )
         }
     }
 
@@ -365,7 +421,10 @@ mod tests {
                 }
                 v
             };
-            let q = Conj { patterns, query_vars };
+            let q = Conj {
+                patterns,
+                query_vars,
+            };
 
             let nfacts = rng.below(6);
             let sp: Vec<Term> = (0..nfacts)
@@ -396,6 +455,9 @@ mod tests {
             }
         }
         assert!(nonempty > 300, "too few non-empty answers: {nonempty}");
-        assert!(schematic_answers > 20, "too few schematic answers exercised: {schematic_answers}");
+        assert!(
+            schematic_answers > 20,
+            "too few schematic answers exercised: {schematic_answers}"
+        );
     }
 }

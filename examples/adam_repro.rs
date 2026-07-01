@@ -41,7 +41,9 @@ struct Tally {
 
 /// Answer keys rendered as a sorted, comparable set of canonical strings.
 fn render(set: &BTreeSet<Vec<u8>>) -> BTreeSet<String> {
-    set.iter().map(|k| prolog::canon(&Term::decode(k))).collect()
+    set.iter()
+        .map(|k| prolog::canon(&Term::decode(k)))
+        .collect()
 }
 
 fn show(set: &BTreeSet<String>) -> String {
@@ -54,7 +56,14 @@ fn show(set: &BTreeSet<String>) -> String {
 
 /// Run one case through the three engines and print it. `force_detail` always prints the full
 /// three-column block (used for a user-supplied query, even when nothing is dropped).
-fn emit_case(name: &str, patterns: &[&str], facts: &[&str], swipl: bool, tally: &mut Tally, force_detail: bool) {
+fn emit_case(
+    name: &str,
+    patterns: &[&str],
+    facts: &[&str],
+    swipl: bool,
+    tally: &mut Tally,
+    force_detail: bool,
+) {
     let q = Conj::parse(patterns);
     let space: Vec<Term> = facts.iter().map(|f| parse(f)).collect();
 
@@ -63,7 +72,10 @@ fn emit_case(name: &str, patterns: &[&str], facts: &[&str], swipl: bool, tally: 
     let dropped: Vec<String> = uni.difference(&eq).cloned().collect();
 
     let pl = if swipl {
-        let out = prolog::run(&prolog::program(&q, &space), &format!("repro_{}", name.replace(' ', "_")));
+        let out = prolog::run(
+            &prolog::program(&q, &space),
+            &format!("repro_{}", name.replace(' ', "_")),
+        );
         tally.prolog_checked += 1;
         if out != uni {
             tally.prolog_disagreements += 1;
@@ -79,7 +91,10 @@ fn emit_case(name: &str, patterns: &[&str], facts: &[&str], swipl: bool, tally: 
             Some(_) => "  != Prolog  <-- CHECK",
             None => "",
         };
-        println!("\n  [{name}]  equality = unification{refereed}   ->  {}", show(&uni));
+        println!(
+            "\n  [{name}]  equality = unification{refereed}   ->  {}",
+            show(&uni)
+        );
         return;
     }
 
@@ -105,14 +120,20 @@ fn emit_case(name: &str, patterns: &[&str], facts: &[&str], swipl: bool, tally: 
             Some(_) => "  <-- SWI-Prolog DISAGREES; investigate.",
             None => "",
         };
-        println!("    >>> equality and unification agree here: no data-side capture needed.{confirm}");
+        println!(
+            "    >>> equality and unification agree here: no data-side capture needed.{confirm}"
+        );
     } else {
         let confirm = match &pl {
             Some(out) if *out == uni => "  SWI-Prolog confirms every one.",
             Some(_) => "  <-- SWI-Prolog DISAGREES with the unification join; investigate.",
             None => "",
         };
-        println!("    >>> the equality join DROPS {}: {}.{confirm}", dropped.len(), dropped.join("   "));
+        println!(
+            "    >>> the equality join DROPS {}: {}.{confirm}",
+            dropped.len(),
+            dropped.join("   ")
+        );
     }
 }
 
@@ -134,7 +155,9 @@ fn parse_args() -> (Vec<String>, Vec<String>) {
                 }
             }
             other => {
-                eprintln!("ignoring unrecognised argument {other:?}; use -q <pattern> and -f <fact>");
+                eprintln!(
+                    "ignoring unrecognised argument {other:?}; use -q <pattern> and -f <fact>"
+                );
             }
         }
     }
@@ -164,20 +187,33 @@ fn main() {
         emit_case("your query", &qrefs, &frefs, swipl, &mut tally, true);
     } else {
         for case in corpus::cases() {
-            emit_case(case.name, case.patterns, case.facts, swipl, &mut tally, false);
+            emit_case(
+                case.name,
+                case.patterns,
+                case.facts,
+                swipl,
+                &mut tally,
+                false,
+            );
         }
     }
 
     println!("\n=====================================================================");
     println!(" SUMMARY");
     if custom {
-        println!("   your query: the equality join dropped {} tuple(s).", tally.total_dropped);
+        println!(
+            "   your query: the equality join dropped {} tuple(s).",
+            tally.total_dropped
+        );
     } else {
         println!(
             "   {} witnesses. The equality join (MORK's relational semantics) drops",
             corpus::cases().len()
         );
-        println!("   {} tuple(s) across {} of them: the data-side captures.", tally.total_dropped, tally.cases_with_drop);
+        println!(
+            "   {} tuple(s) across {} of them: the data-side captures.",
+            tally.total_dropped, tally.cases_with_drop
+        );
     }
     if swipl {
         println!(
@@ -187,7 +223,9 @@ fn main() {
             tally.prolog_disagreements
         );
         if tally.prolog_disagreements == 0 {
-            println!("   Every answer the unification join gives, SWI-Prolog independently confirms.");
+            println!(
+                "   Every answer the unification join gives, SWI-Prolog independently confirms."
+            );
         }
     } else {
         println!("   Install SWI-Prolog and re-run to see the independent referee.");

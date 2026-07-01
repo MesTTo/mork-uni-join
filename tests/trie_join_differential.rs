@@ -5,8 +5,8 @@
 //! agreement here transitively pins the trie join to the independent oracle too.
 
 use mork_uni_join::corpus;
-use mork_uni_join::randgen::{gen_facts, gen_query, Rng};
 use mork_uni_join::oracle::Conj;
+use mork_uni_join::randgen::{gen_facts, gen_query, Rng};
 use mork_uni_join::term::{self, Term};
 use mork_uni_join::trie_join::trie_unify_join;
 use mork_uni_join::unijoin::leapfrog_unify_join;
@@ -53,6 +53,12 @@ fn trie_join_matches_sealed_join_random() {
     eprintln!(
         "random differential: {trials} trials, {nonempty} non-empty, {nonground} with non-ground (capture) answers, {total_answers} total answers"
     );
-    assert!(nonempty > trials / 10, "too few non-empty results ({nonempty}/{trials})");
-    assert!(nonground > 50, "too few capture (non-ground) results ({nonground})");
+    assert!(
+        nonempty > trials / 10,
+        "too few non-empty results ({nonempty}/{trials})"
+    );
+    assert!(
+        nonground > 50,
+        "too few capture (non-ground) results ({nonground})"
+    );
 }

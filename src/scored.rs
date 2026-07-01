@@ -86,7 +86,9 @@ fn go<S: Semiring>(
     }
     if i == q.patterns.len() {
         let key = answer_key(env, &q.query_vars);
-        out.entry(key).and_modify(|c| *c = c.add(&acc)).or_insert(acc);
+        out.entry(key)
+            .and_modify(|c| *c = c.add(&acc))
+            .or_insert(acc);
         return;
     }
     for fact in space {
@@ -151,7 +153,10 @@ mod tests {
                 &["(e $x $y)", "(e $y $z)", "(e $x $z)"],
                 &["(e a b)", "(e a c)", "(e b c)", "(e b d)"],
             ),
-            (&["(: ($f) A)", "(: $f (-> A))"], &["(: (f) A)", "(: f (-> A))"]),
+            (
+                &["(: ($f) A)", "(: $f (-> A))"],
+                &["(: (f) A)", "(: f (-> A))"],
+            ),
             (&["(p $x)", "(q $x)"], &["(p a)", "(q a)", "(q b)"]),
             (&["(rel $x b)"], &["(rel a $w)"]),
         ];
@@ -159,8 +164,11 @@ mod tests {
             let q = Conj::parse(pats);
             let s = space(facts);
             let scored = eval_cost::<Reach>(&q, &s, &|p, d| exact_leaf(p, d));
-            let reach_keys: BTreeSet<Vec<u8>> =
-                scored.into_iter().filter(|(_, c)| c.0).map(|(k, _)| k).collect();
+            let reach_keys: BTreeSet<Vec<u8>> = scored
+                .into_iter()
+                .filter(|(_, c)| c.0)
+                .map(|(k, _)| k)
+                .collect();
             let oracle: BTreeSet<Vec<u8>> = naive_match(&q, &s).into_iter().collect();
             assert_eq!(reach_keys, oracle, "Reach must recover exact for {pats:?}");
         }
@@ -204,7 +212,10 @@ mod tests {
         let scored = eval_cost(&q, &s, &tropical_leaf);
         // Best europe reading near 1992 is 1995 (cost |1995-1992| = 3); 1998 costs 6.
         // Reduce with the semiring sum (which is min for tropical) to get the best.
-        let best = scored.values().cloned().fold(Tropical::zero(), |a, v| a.add(&v));
+        let best = scored
+            .values()
+            .cloned()
+            .fold(Tropical::zero(), |a, v| a.add(&v));
         assert_eq!(best, Tropical(Some(3)));
         // asia never appears (the crisp region filter is exact), so every answer is a
         // europe year: two answers, 1995 and 1998.

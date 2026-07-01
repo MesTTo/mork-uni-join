@@ -39,7 +39,9 @@ pub struct FuzzyMap<V> {
 
 impl<V> FuzzyMap<V> {
     pub fn new() -> Self {
-        FuzzyMap { entries: Vec::new() }
+        FuzzyMap {
+            entries: Vec::new(),
+        }
     }
 
     pub fn insert(&mut self, key: &str, value: V) {

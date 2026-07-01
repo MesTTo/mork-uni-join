@@ -126,7 +126,10 @@ pub struct TrieZipper<'a> {
 
 impl<'a> TrieZipper<'a> {
     pub fn new(root: &'a ByteTrie) -> TrieZipper<'a> {
-        TrieZipper { stack: vec![root], path: Vec::new() }
+        TrieZipper {
+            stack: vec![root],
+            path: Vec::new(),
+        }
     }
 
     fn node(&self) -> &'a ByteTrie {
@@ -215,7 +218,11 @@ pub struct SubtermCursor<'a> {
 
 impl<'a> SubtermCursor<'a> {
     pub fn new(z: TrieZipper<'a>) -> SubtermCursor<'a> {
-        SubtermCursor { z, key: Vec::new(), at_end: true }
+        SubtermCursor {
+            z,
+            key: Vec::new(),
+            at_end: true,
+        }
     }
 
     fn reset_to_floor(&mut self) {
@@ -361,12 +368,20 @@ mod tests {
         let col0 = subterms_after(&trie, &head);
         let a = parse("a").encode();
         let b = parse("b").encode();
-        assert_eq!(col0, vec![a.clone(), b.clone()], "first column distinct values a,b");
+        assert_eq!(
+            col0,
+            vec![a.clone(), b.clone()],
+            "first column distinct values a,b"
+        );
 
         let mut head_a = head.clone();
         head_a.extend(&a);
         let col1 = subterms_after(&trie, &head_a);
-        assert_eq!(col1, vec![b.clone(), parse("c").encode()], "second column after a: b,c");
+        assert_eq!(
+            col1,
+            vec![b.clone(), parse("c").encode()],
+            "second column after a: b,c"
+        );
     }
 
     #[test]
@@ -384,9 +399,17 @@ mod tests {
         }
         let mut cur = SubtermCursor::new(z);
         cur.seek(&parse("b").encode());
-        assert_eq!(cur.key(), Some(parse("c").encode().as_slice()), "seek b -> c");
+        assert_eq!(
+            cur.key(),
+            Some(parse("c").encode().as_slice()),
+            "seek b -> c"
+        );
         cur.seek(&parse("e").encode());
-        assert_eq!(cur.key(), Some(parse("e").encode().as_slice()), "seek e -> e (exact)");
+        assert_eq!(
+            cur.key(),
+            Some(parse("e").encode().as_slice()),
+            "seek e -> e (exact)"
+        );
     }
 
     #[test]
@@ -400,6 +423,10 @@ mod tests {
             h
         };
         let cols = subterms_after(&trie, &head);
-        assert_eq!(cols, vec![vec![NEWVAR_BYTE]], "stored var column is the NewVar byte");
+        assert_eq!(
+            cols,
+            vec![vec![NEWVAR_BYTE]],
+            "stored var column is the NewVar byte"
+        );
     }
 }

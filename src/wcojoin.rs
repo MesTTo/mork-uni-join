@@ -48,7 +48,11 @@ pub fn all_vars(rels: &[Relation]) -> Vec<u32> {
 /// Index one relation into a trie over its variables in `order`. A tuple that does not
 /// bind one of the relation's join variables cannot complete a solution, so it is dropped.
 fn index_relation(r: &Relation, order: &[u32]) -> RelInfo {
-    let rel_vars: Vec<u32> = order.iter().copied().filter(|v| r.vars.contains(v)).collect();
+    let rel_vars: Vec<u32> = order
+        .iter()
+        .copied()
+        .filter(|v| r.vars.contains(v))
+        .collect();
     let mut root: BTreeMap<Vec<u8>, TrieNode> = BTreeMap::new();
     'tuple: for t in &r.tuples {
         let mut node = &mut root;
@@ -90,7 +94,15 @@ pub fn wco_join(rels: &[Relation], order: &[u32], visits: &mut u64) -> Vec<BTree
     let mut partial: BTreeMap<u32, Term> = BTreeMap::new();
     let mut cursors: Vec<&BTreeMap<Vec<u8>, TrieNode>> =
         rel_infos.iter().map(|ri| &ri.root).collect();
-    recurse(order, &participants, 0, &mut cursors, &mut partial, &mut out, visits);
+    recurse(
+        order,
+        &participants,
+        0,
+        &mut cursors,
+        &mut partial,
+        &mut out,
+        visits,
+    );
     out
 }
 

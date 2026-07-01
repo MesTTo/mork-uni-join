@@ -70,7 +70,10 @@ pub fn gen_query(rng: &mut Rng) -> Conj {
             }
         }
     }
-    Conj { patterns, query_vars }
+    Conj {
+        patterns,
+        query_vars,
+    }
 }
 
 /// A fact set: several atoms, some ground and some schematic (their variables are data-side).
@@ -78,7 +81,11 @@ pub fn gen_facts(rng: &mut Rng) -> Vec<Term> {
     let n = 3 + rng.below(6);
     (0..n)
         .map(|_| {
-            let pool = if rng.chance(1, 2) { 1 + rng.below(2) } else { 0 };
+            let pool = if rng.chance(1, 2) {
+                1 + rng.below(2)
+            } else {
+                0
+            };
             gen_atom(rng, pool)
         })
         .collect()

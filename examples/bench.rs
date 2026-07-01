@@ -83,7 +83,10 @@ fn main() {
         let (ans_naive, nv_ms) = time_min(reps, || naive_match(&q, &space));
         let ans_decline = leapfrog_unify_join(&q, &ground);
 
-        assert_eq!(ans_uni, ans_naive, "leapfrog-unify != naive unifier at N={n}");
+        assert_eq!(
+            ans_uni, ans_naive,
+            "leapfrog-unify != naive unifier at N={n}"
+        );
         assert!(
             ans_decline.is_subset(&ans_uni),
             "declining schematic facts found an answer unification did not, at N={n}"

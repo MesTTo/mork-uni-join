@@ -17,10 +17,10 @@
 pub mod antiunify;
 pub mod corpus;
 pub mod join;
-pub mod randgen;
 pub mod oracle;
 pub mod prolog;
 pub mod quantale;
+pub mod randgen;
 pub mod scored;
 pub mod semiring;
 pub mod string_fuzzy;
