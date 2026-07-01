@@ -32,6 +32,18 @@ shared query variables across goals are the join, and `numbervars/3` canonicalis
 the two engines' answer strings line up. That independence is the point: the referee is not MORK
 and not this crate.
 
+## Throw your own query at it
+
+The corpus is fixed, but the harness is not. Supply your own conjunctive query and facts and it
+runs the same three engines on them:
+
+    cargo run --release --example adam_repro -- \
+        -q "(r (a $p) b)" -q "(r (b) $p)" -f "(r $d b)" -f "(r a b)"
+
+Each `-q` is a factor, each `-f` a stored fact (which may contain variables). Try to find a case
+where the unification join and SWI-Prolog disagree. If you do, the example exits non-zero and
+prints both answer sets, so a divergence surfaces immediately rather than hiding.
+
 ## The join
 
 This is the trie-join combined with unification. It is a worst-case-optimal-style trie descent
