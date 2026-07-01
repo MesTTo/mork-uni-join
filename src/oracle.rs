@@ -1,10 +1,9 @@
 //! The differential oracle: a naive, obviously-correct matcher for a conjunctive query.
 //!
-//! This is the ground truth the fast join is checked against. It mirrors the
-//! `complete_match` semantics certified in MORK's `SidecarSchematicDecline.rs`: a
-//! data-side variable in a stored fact matches any query subterm (it is a wildcard that
-//! captures), otherwise shapes must agree and children match pairwise, and coreference
-//! is enforced by unification. It is "complete" by construction: it tries every
+//! This is the ground truth the fast join is checked against. It mirrors MORK's own
+//! matcher semantics: a data-side variable in a stored fact matches any query subterm (it is
+//! a wildcard that captures), otherwise shapes must agree and children match pairwise, and
+//! coreference is enforced by unification. It is "complete" by construction: it tries every
 //! assignment of one stored fact per pattern and unifies them all simultaneously.
 
 use crate::term::Term;

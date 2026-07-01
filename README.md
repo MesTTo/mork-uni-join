@@ -1,15 +1,29 @@
 # A worst-case-optimal trie-join that unifies over schematic data
 
+> **Correction (July 2026).** An earlier version of this README framed MORK's fast path as a
+> capture-free "equality join" that "declines schematic facts wholesale," leaving data-side capture
+> for this prototype to recover. That is wrong about upstream MORK (trueagi-io/MORK): its
+> ProductZipper does data-side capture and agrees with SWI-Prolog on the corpus here. The
+> `mork_fixture.txt` case that looked incomplete was captured from a local fork carrying a
+> regression, since confirmed against upstream and fixed. What this prototype actually is: the
+> equality join is a capture-free *baseline* built here as a foil, the unification join is a
+> correctness oracle sealed byte-for-byte against SWI-Prolog, and the numbers are a scaling study.
+> The honest, byte-identical, worst-case-optimal version of MORK's own capture semantics, over
+> stock upstream MORK, is at **[mork-wco-leapfrog](https://github.com/MesTTo/mork-wco-leapfrog)**:
+> flat conjunctive queries whole, data-side capture of a query compound, O(s) where the ProductZipper
+> is O(s²).
+
 The worst-case-optimal trie-join (leapfrog triejoin) is fast, but it joins ground tuples: it
 binds one variable at a time and intersects each variable's domain across relations by equality
 on a sorted key. This is a small Rust prototype that replaces that equality intersection with
 unification, so the same variable-at-a-time trie join works over a space whose stored facts carry
 variables of their own (schematic facts).
 
-MORK's worst-case-optimal join joins ground tuples, and its sidecar declines schematic facts
-wholesale (`SidecarSchematicDecline`). This join does not decline them.
-Its per-variable intersection is a unification step threaded through a WAM trail, so it stays
-worst-case-optimal on the ground structure while handling the variables in the data.
+The contrast this prototype draws is against a capture-free equality join, a baseline it builds as
+a foil, not against MORK: upstream MORK's ProductZipper does the same data-side capture the
+unification join does. The per-variable intersection is a unification step threaded through a WAM
+trail, so it stays worst-case-optimal on the ground structure while handling the variables in the
+data.
 
 ## The completeness gap, refereed by SWI-Prolog
 
@@ -17,7 +31,7 @@ Data-side capture is where a relational join and first-order unification part wa
 variable has to bind a query subterm, which relational matching (query variables bind fact
 subterms, not the reverse) silently drops. `./reproduce.sh`, or `cargo run --release --example
 adam_repro`, runs three engines on a sixteen-query corpus and prints them side by side: the equality
-join (relational, the semantics MORK's fast path computes), the unification join with data-side
+join (relational, a capture-free baseline, not what MORK's fast path computes), the unification join with data-side
 capture, and SWI-Prolog under `set_prolog_flag(occurs_check, true)`, an engine that shares no code
 with either. On eight of the sixteen queries the equality join drops answers the unification join
 recovers, fifteen tuples in all; on the other eight the two already agree, a control that the
@@ -118,7 +132,8 @@ On the captured corpus, 24 cases: 23 match the live matcher exactly. On the 24th
 two extra answers, both needing a stored variable to match a compound (data-side capture); the
 naive reference unifier returns them too. That case is data-side capture, and the reproduction
 above settles it: SWI-Prolog under occurs-check returns those same answers, so the join is right
-to find them and the ProductZipper is incomplete there, not the join wrong to add them.
+to find them. The fixture that missed them was captured from a fork carrying a regression, since
+fixed; upstream MORK's ProductZipper finds them too.
 
 ## Wired into MORK's live flip
 

@@ -16,9 +16,10 @@
 //!   column to a value fixed by another relation and fabricates answers that are not
 //!   per-fact-tuple unifiers. That case routes to the coupled per-tuple path.
 //!
-//! This refines MORK's all-or-nothing `SidecarSchematicDecline` (decline the whole join
-//! if any fact is schematic) to a per-position admission: admit schematic facts into the
-//! worst-case-optimal join whenever their variables do not land on a join position.
+//! This refines a fork's all-or-nothing `SidecarSchematicDecline` route (decline the whole
+//! join if any fact is schematic; upstream MORK does the capture instead) to a per-position
+//! admission: admit schematic facts into the worst-case-optimal join whenever their variables
+//! do not land on a join position.
 
 use crate::oracle::Conj;
 use crate::term::Term;

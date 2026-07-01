@@ -6,6 +6,13 @@ A conjunctive query over a space whose facts may themselves contain variables ca
 fact variable to bind a query subterm. Call it data-side capture. Relational matching binds
 query variables to fact subterms but not the reverse, so it silently drops those answers.
 
+Upstream MORK is not the relational side of this gap: its ProductZipper does the same data-side
+capture the unification join does, and agrees with SWI-Prolog here. The equality join below is a
+capture-free baseline built as a foil, not MORK's semantics. What this shows is the gap between a
+relational join and unification, refereed by an independent engine. The worst-case-optimal,
+byte-identical-to-MORK version, over stock upstream, is at
+https://github.com/MesTTo/mork-wco-leapfrog.
+
 The smallest witness:
 
     query:  (r (a $p) b)  ,  (r (b) $p)
