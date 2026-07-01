@@ -11,6 +11,25 @@ wholesale (`SidecarSchematicDecline`). This join does not decline them.
 Its per-variable intersection is a unification step threaded through a WAM trail, so it stays
 worst-case-optimal on the ground structure while handling the variables in the data.
 
+## The completeness gap, refereed by SWI-Prolog
+
+Data-side capture is where a relational join and first-order unification part ways: a stored fact
+variable has to bind a query subterm, which relational matching (query variables bind fact
+subterms, not the reverse) silently drops. `./reproduce.sh`, or `cargo run --release --example
+adam_repro`, runs three engines on sixteen such queries and prints them side by side: the equality
+join (relational, the semantics MORK's fast path computes), the unification join with data-side
+capture, and SWI-Prolog under `set_prolog_flag(occurs_check, true)`, an engine that shares no code
+with either. The equality join drops fifteen tuples across eight of the cases; the unification join
+equals SWI-Prolog on every one, and the example exits non-zero if they ever disagree.
+
+The smallest witness is `(r (a $p) b), (r (b) $p)` over facts `(r $d b), (r a b)`. Here `$d`
+absorbs `(a $p)`, then `(b)` forces `$p = b`; relational matching returns nothing, unification and
+Prolog both return `$p = b`. The equality column is the same descent with the capture step switched
+off (`equality_join`, and a test asserts it is a strict subset of the full join), so the difference
+is exactly the capture contribution, isolated in one engine rather than an artifact of comparing two
+codebases. Bring your own query with `-q`/`-f` and try to find a case where the join and Prolog
+disagree. `ADAM.md` writes up the finding, the independent check, and the limits.
+
 ## The join
 
 `src/unijoin.rs` is the leapfrog triejoin with unification. Each pattern is matched against the
@@ -33,9 +52,10 @@ the live MORK ProductZipper produced.
 ## Run it
 
 ```
-cargo test            # 60 unit tests, a 6000-case differential, and a check against real MORK answers
+cargo test                                 # unit tests, a 20000-case differential, the SWI-Prolog seal, a real-MORK fixture
+cargo run --release --example adam_repro   # the completeness gap: equality join vs unification vs SWI-Prolog
 cargo run --example demo
-cargo run --release --example bench   # the unification triejoin vs the naive unifier
+cargo run --release --example bench        # the unification triejoin vs the naive unifier
 ```
 
 ## Benchmark
@@ -100,8 +120,9 @@ each line a body, a space, and the ground answers MORK emitted, captured by runn
 ground answer the matcher produced, and that where they differ it is only the join finding more.
 On the captured corpus, 24 cases: 23 match the live matcher exactly. On the 24th the join returns
 two extra answers, both needing a stored variable to match a compound (data-side capture); the
-naive reference unifier returns them too. That case is the subtle part of the matcher semantics,
-and the fixture does not try to settle it.
+naive reference unifier returns them too. That case is data-side capture, and the reproduction
+above settles it: SWI-Prolog under occurs-check returns those same answers, so the join is right
+to find them and the ProductZipper is incomplete there, not the join wrong to add them.
 
 ## Wired into MORK's live flip
 
@@ -146,6 +167,12 @@ join key, run both ways:
 The ProductZipper materializes the s^2 two-paths the worst-case-optimal join prunes, so the gap widens
 with the hub. This is single-to-low-double digits, not the prototype bench's thousands, because the
 baseline here is the real matcher, not a quadratic nested loop.
+
+These live-path times, here and in the section below, are measured on this fork's PathMap, a local
+perf branch that diverges from upstream. They are within-substrate A/B ratios, both arms on the same
+PathMap, so they isolate the join algorithm rather than the map; read them as the relative recovery,
+not as absolute upstream numbers. The completeness result above needs none of this: it is the answer
+sets, refereed by SWI-Prolog, independent of any PathMap.
 
 The route reads its facts through the PathMap index, descending to each relation prefix on the same
 snapshot the ProductZipper reads, not by scanning the whole space. Flooding the space with unrelated
