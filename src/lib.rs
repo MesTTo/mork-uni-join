@@ -19,6 +19,7 @@ pub mod corpus;
 pub mod join;
 pub mod randgen;
 pub mod oracle;
+pub mod prolog;
 pub mod quantale;
 pub mod scored;
 pub mod semiring;
