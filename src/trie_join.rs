@@ -48,6 +48,10 @@ struct Descent<'a, Z> {
     fresh: u32,
     slots: Vec<u32>,
     out: BTreeSet<Vec<u8>>,
+    /// When false, the data-side-capture step is skipped: a stored wildcard never binds a query
+    /// compound, so the descent is a plain relational (equality) join. The ONLY difference from the
+    /// full join, so the two answer sets differ by exactly the data-side-capture answers.
+    capture: bool,
 }
 
 #[inline]
@@ -174,29 +178,32 @@ fn match_subterm<Z: SubtermZip>(d: &mut Descent<Z>, q: &Term, cont: &mut dyn FnM
         // A structured query (symbol or compound) matches the same structure in the data, OR
         // is captured by a stored wildcard variable.
         _ => {
-            // (A) capture: a stored wildcard variable binds the whole query subterm.
-            for b in child_bytes(&d.z) {
-                if !(0x80..=0xC0).contains(&b) {
-                    continue;
+            // (A) capture: a stored wildcard variable binds the whole query subterm. Skipped in
+            // equality mode, where a stored variable never absorbs a query compound.
+            if d.capture {
+                for b in child_bytes(&d.z) {
+                    if !(0x80..=0xC0).contains(&b) {
+                        continue;
+                    }
+                    d.z.descend_byte(b);
+                    let slots_len = d.slots.len();
+                    let dv = if b == NEWVAR_BYTE {
+                        let id = d.fresh;
+                        d.fresh += 1;
+                        d.slots.push(id);
+                        id
+                    } else {
+                        d.slots[(b & LOW6) as usize]
+                    };
+                    let m = d.env.mark();
+                    let qr = d.env.resolve(q);
+                    if d.env.unify(&Term::Var(dv), &qr) {
+                        cont(d);
+                    }
+                    d.env.rollback(m);
+                    d.slots.truncate(slots_len);
+                    d.z.ascend();
                 }
-                d.z.descend_byte(b);
-                let slots_len = d.slots.len();
-                let dv = if b == NEWVAR_BYTE {
-                    let id = d.fresh;
-                    d.fresh += 1;
-                    d.slots.push(id);
-                    id
-                } else {
-                    d.slots[(b & LOW6) as usize]
-                };
-                let m = d.env.mark();
-                let qr = d.env.resolve(q);
-                if d.env.unify(&Term::Var(dv), &qr) {
-                    cont(d);
-                }
-                d.env.rollback(m);
-                d.slots.truncate(slots_len);
-                d.z.ascend();
             }
             // (B) structural descent into matching data structure.
             match q {
@@ -279,6 +286,18 @@ fn solve<Z: SubtermZip>(d: &mut Descent<Z>, fi: usize) {
 /// disjoint from the query variable ids (the query uses small ids, so a large base is safe).
 /// The return is byte-identical to `unijoin::leapfrog_unify_join` (canonical answer keys).
 pub fn unify_join_z<Z: SubtermZip>(z: Z, q: &Conj, fresh_base: u32) -> BTreeSet<Vec<u8>> {
+    unify_join_z_opts(z, q, fresh_base, true)
+}
+
+/// As [`unify_join_z`], with `capture` selecting the semantics: `true` is the full unification
+/// join with data-side capture, `false` is the plain relational (equality) join. The two differ
+/// by exactly the data-side-capture answers, so pairing them isolates the capture contribution.
+pub fn unify_join_z_opts<Z: SubtermZip>(
+    z: Z,
+    q: &Conj,
+    fresh_base: u32,
+    capture: bool,
+) -> BTreeSet<Vec<u8>> {
     let mut d = Descent {
         factors: &q.patterns,
         query_vars: &q.query_vars,
@@ -287,6 +306,7 @@ pub fn unify_join_z<Z: SubtermZip>(z: Z, q: &Conj, fresh_base: u32) -> BTreeSet<
         fresh: fresh_base,
         slots: Vec::new(),
         out: BTreeSet::new(),
+        capture,
     };
     solve(&mut d, 0);
     d.out
@@ -296,6 +316,16 @@ pub fn unify_join_z<Z: SubtermZip>(z: Z, q: &Conj, fresh_base: u32) -> BTreeSet<
 pub fn trie_unify_join(q: &Conj, facts: &[Term]) -> BTreeSet<Vec<u8>> {
     let trie = ByteTrie::from_terms(facts);
     unify_join_z(TrieZipper::new(&trie), q, 1_000_000)
+}
+
+/// The same descent with data-side capture DISABLED: a stored wildcard never absorbs a query
+/// compound, so a query pattern matches only by structural equality up to query-variable binding.
+/// This is the relational (equality) join, the semantics a Datalog-style engine, including MORK's
+/// current fast path, computes. Its answers are a subset of [`trie_unify_join`]'s; the missing
+/// ones are exactly the data-side captures.
+pub fn equality_join(q: &Conj, facts: &[Term]) -> BTreeSet<Vec<u8>> {
+    let trie = ByteTrie::from_terms(facts);
+    unify_join_z_opts(TrieZipper::new(&trie), q, 1_000_000, false)
 }
 
 #[cfg(test)]
@@ -348,5 +378,29 @@ mod tests {
             &["(e (k $x0) $x1)", "(e (k $x1) $x2)", "(h $x2 $x0)"],
             &["(e (k $s2) v0)", "(e $s1 $s1)", "(h $s0 $s0)"],
         );
+    }
+
+    /// The equality join (capture off) is exactly the capture join minus the data-side captures:
+    /// a subset on every case, and strictly smaller on the genuine-capture cases. This pins the
+    /// reference the reproduction uses to isolate the contribution.
+    #[test]
+    fn equality_join_is_capture_join_minus_capture() {
+        use crate::corpus;
+        let mut differ = 0usize;
+        for case in corpus::cases() {
+            let q = Conj::parse(case.patterns);
+            let sp = space(case.facts);
+            let full = trie_unify_join(&q, &sp);
+            let eq = equality_join(&q, &sp);
+            assert!(
+                eq.is_subset(&full),
+                "case {:?}: the equality join is not a subset of the capture join",
+                case.name
+            );
+            if eq != full {
+                differ += 1;
+            }
+        }
+        assert!(differ >= 3, "the corpus must contain cases where capture adds answers: {differ}");
     }
 }
