@@ -16,11 +16,13 @@ worst-case-optimal on the ground structure while handling the variables in the d
 Data-side capture is where a relational join and first-order unification part ways: a stored fact
 variable has to bind a query subterm, which relational matching (query variables bind fact
 subterms, not the reverse) silently drops. `./reproduce.sh`, or `cargo run --release --example
-adam_repro`, runs three engines on sixteen such queries and prints them side by side: the equality
+adam_repro`, runs three engines on a sixteen-query corpus and prints them side by side: the equality
 join (relational, the semantics MORK's fast path computes), the unification join with data-side
 capture, and SWI-Prolog under `set_prolog_flag(occurs_check, true)`, an engine that shares no code
-with either. The equality join drops fifteen tuples across eight of the cases; the unification join
-equals SWI-Prolog on every one, and the example exits non-zero if they ever disagree.
+with either. On eight of the sixteen queries the equality join drops answers the unification join
+recovers, fifteen tuples in all; on the other eight the two already agree, a control that the
+unification join adds nothing spurious. SWI-Prolog confirms the unification join on every query, and
+the example exits non-zero if they ever disagree.
 
 The smallest witness is `(r (a $p) b), (r (b) $p)` over facts `(r $d b), (r a b)`. Here `$d`
 absorbs `(a $p)`, then `(b)` forces `$p = b`; relational matching returns nothing, unification and
@@ -58,34 +60,28 @@ cargo run --example demo
 cargo run --release --example bench        # the unification triejoin vs the naive unifier
 ```
 
-## Benchmark
+## Worst-case-optimal scaling
 
-`cargo run --release --example bench` runs the triangle `(e $x $y), (e $y $z), (e $x $z)` over a
-space that contains schematic edges, and compares the leapfrog-unify join against the naive
-unifier (the full nested-loop matcher, the reference). The workload is the AGM-blowup triangle: a
-hub of `s` in- and out-edges gives s^2 two-paths but no triangle, a small complete digraph gives
-the ground triangles, and a few schematic edges (a node related to a variable) add answers that
-need unification. Both methods return identical answers on every row.
+`cargo run --release --example bench` checks that the implementation scales worst-case-optimally,
+not just that the theory says so. It runs the AGM-blowup triangle `(e $x $y), (e $y $z), (e $x $z)`
+over a space where a hub of `s` in- and out-edges gives s^2 two-paths but no triangle, a small
+complete digraph supplies the ground triangles, and a few schematic edges add answers that need
+unification. The baseline is this crate's own naive nested-loop unifier, which is the correctness
+reference, not a competitor: both return identical answers on every row.
 
 ```
-   N     sch  decline_ans  uni_ans   naive_ms  leapfrog_ms   speedup
-   65      3      120        270        6.767      0.267       25.3x
-   97      3      120        366       21.030      0.361       58.3x
-  161      3      120        558      104.117      0.521      200.0x
-  289      3      120        942      683.135      0.895      763.0x
-  545      3      120       1710     4831.741      1.702     2839.1x
+   N     naive_ms   leapfrog_ms
+   65      6.767       0.267
+  161    104.117       0.521
+  289    683.135       0.895
+  545   4831.741       1.702
 ```
 
-Two things, both measured. The leapfrog-unify join scales near-linearly where the naive unifier
-is quadratic, so the gap widens with size (2839x at 545 edges, and about 8870x at a thousand
-before the example caps the slow naive rows). And unification is doing the work, not decorating
-it: declining the schematic facts finds 120 answers, the unification join finds 1710, the
-difference being exactly the triangles the schematic edges complete.
-
-The honest framing of the speedup: the baseline is the naive nested-loop unifier, and the gap is
-the AGM separation (worst-case-optimal versus a quadratic intermediate) now holding with
-unification in the loop. It is not a number against a tuned engine; it is the cost of doing
-unification the naive way versus doing it inside a worst-case-optimal join.
+The join stays near-linear where the naive unifier is quadratic, the worst-case-optimal versus
+quadratic separation, now holding with unification in the intersection rather than equality. That
+is the only claim here: the WCO scaling survives putting a unifier in the loop, measured against a
+reference unifier rather than a tuned engine. The comparison that matters for deployment, against
+MORK's real ProductZipper, is the live A/B further down.
 
 ## When it is worst-case-optimal
 
@@ -147,8 +143,8 @@ rotation cycles over several relations. The adversarial one (3000 cases) adds mi
 cycle, compound-wrapped endpoints, and coreferent and two-deep nested schematic facts; it is what
 caught the subtle case, where a per-factor capture check missed capture propagated through the join
 (`(out (k v0) (k v0))` needing three stored variables to bind the same compound), and pinned the
-conservative gate above. Both never diverge. The full kernel test suite (363 tests) passes unchanged
-with the route on.
+conservative gate above. Both never diverge, and the full kernel test suite passes unchanged with
+the route on.
 
 The recovery, measured against the real ProductZipper rather than the naive unifier, is the AGM
 separation on the live path. The same cyclic triangle over a hub-blowup space with schematic edges on a
@@ -200,14 +196,17 @@ complete subterms branching from a zipper focus, the backtracking trie lower bou
 `child_mask` and `descend_to_byte`. That variable-width seek is what the fixed-width zipper-join
 prototypes could not express.
 
-The intersection is a trail union-find, not a structural unifier. In the routed scope, the same
-no-non-ground-compound gate the live route uses, every join key is a ground byte-slice or a variable,
-so unification degenerates: a ground subterm is an opaque value compared by equality, a variable
-unifies with anything, and nothing recurses into compound structure. `proofs/ZipperUnifySafe.thy`
-machine-checks that degeneracy. On flat terms, a variable or a fully ground term, structural
-unifiability equals the union-find decision (`flat_unifiable_iff_uf_agree`); it lifts to the join
-intersection (`zipper_uf_join_eq_unification_join`); and a non-ground compound is the witness that
-breaks it, which is the gate's boundary (`nonflat_uf_unsound`). Builds clean, no `sorry`.
+Its intersection is a trail union-find, not a structural unifier, and it is exact only where the
+gate keeps the keys flat. The no-non-ground-compound gate makes every join key a ground byte-slice
+or a bare variable, never a variable inside a compound. On flat keys unification is just union-find:
+equal ground values, or a variable that binds anything, with no recursion into structure. That is
+the whole of what this join computes, so it is the fast path for the ground and flat case; data-side
+capture, a variable binding a compound, is exactly what a flat key excludes, and stays with the
+structural unifier the sections above use. `proofs/ZipperUnifySafe.thy` checks both directions:
+structural unifiability equals the union-find decision on flat terms (`flat_unifiable_iff_uf_agree`,
+lifted to the join by `zipper_uf_join_eq_unification_join`), and a non-ground compound is the
+counterexample that breaks it (`nonflat_uf_unsound`), which is why the gate declines it. It builds
+clean with no `sorry`, over the abstract term model, not the Rust.
 
 The join is checked byte-identical to the real ProductZipper: five hand cases (compatible and cyclic
 triangles, a schematic edge at the join, a coreferent schematic fact, a shared-key conjunction) and
